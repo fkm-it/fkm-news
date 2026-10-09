@@ -31,6 +31,46 @@
     });
   }
 
+  /*
+   * Portal statik (F5): jawapan awam dibaca dahulu daripada data/*.json di
+   * GitHub Pages (dijana oleh StaticSite.gs setiap kali berita diterbitkan).
+   * Jika fail tiada (cth. berita baru diterbitkan, carian), jatuh balik
+   * kepada Apps Script.
+   */
+  function staticPath(fn, args) {
+    var p = (fn === 'publicApi' ? args[1] : null) || {};
+    var lang = (fn === 'publicSidebar' ? args[0] : p.lang) === 'en' ? 'en' : 'bm';
+    var base = 'data/' + lang + '/';
+    if (fn === 'publicSidebar') return base + 'sidebar.json';
+    if (fn !== 'publicApi') return null;
+    switch (args[0]) {
+      case 'public.bootstrap': return base + 'bootstrap.json';
+      case 'public.home': return base + 'home.json';
+      case 'public.list':
+        if (p.search) return null;
+        return base + 'list-' + (p.categoryId ? String(p.categoryId).replace(/[^\w-]/g, '') : 'all') +
+          '-' + (parseInt(p.page, 10) || 1) + '.json';
+      case 'public.article':
+        return /^[\w-]+$/.test(String(p.newsId || '')) ? base + 'a/' + p.newsId + '.json' : null;
+    }
+    return null;
+  }
+
+  function viaStatic(fn, args, ok, fail) {
+    var path = staticPath(fn, args);
+    if (!path) return call(fn, args, ok, fail);
+    fetch(path, { cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error('static ' + r.status);
+      return r.json();
+    }).then(function (res) {
+      ok(res);
+      /* kiraan tontonan untuk artikel yang dihidang secara statik */
+      if (fn === 'publicApi' && args[0] === 'public.article') {
+        call('publicApi', ['public.view', { newsId: args[1].newsId }], function () {}, function () {});
+      }
+    }).catch(function () { call(fn, args, ok, fail); });
+  }
+
   function runner(ok, fail) {
     var target = {
       withSuccessHandler: function (f) { return runner(f, fail); },
@@ -40,7 +80,7 @@
       get: function (t, name) {
         if (name in t) return t[name];
         return function () {
-          call(String(name), Array.prototype.slice.call(arguments),
+          viaStatic(String(name), Array.prototype.slice.call(arguments),
             ok || function () {}, fail || function () {});
         };
       }

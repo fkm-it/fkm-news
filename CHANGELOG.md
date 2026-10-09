@@ -1,5 +1,17 @@
 # Changelog — FKM News
 
+## 1.4.0 — 2026-10-09 · F5 Portal Statik Pantas
+
+Portal awam kini membaca berita daripada fail statik di GitHub Pages (CDN). Apps Script hanya dihubungi untuk carian, kiraan tontonan dan berita yang belum disalin. Paparan portal tidak berubah.
+
+- `StaticSite.gs`: apabila berita **diterbitkan, diarkibkan atau dinyaharkib**, semua jawapan awam (BM & BI: bootstrap, laman utama, senarai ikut kategori/halaman, setiap artikel, panel sisi) dijana sekali dan ditolak ke `data/` dalam repo sebagai **satu commit** (Git Data API). Fail lapuk dipadam dan hanya `data/` disentuh. Perubahan tetapan, kategori dan kad ucapan ditanda tertunda dan ditolak oleh trigger 10 minit. Tanpa token, portal kekal berfungsi seperti dahulu.
+- `PublicService.handle()` dikongsi oleh laluan awam dan penjanaan statik. Tindakan baharu `public.view` hanya menambah kiraan tontonan.
+- `pwa/bridge.js`: baca `data/*.json` dahulu, jatuh balik kepada Apps Script jika tiada.
+- `tools/build-web.js`: salin `data/`, jana **`/b/<slug>/`** setiap berita (meta Open Graph: tajuk, ringkasan, gambar, untuk pratonton WhatsApp/Facebook/LinkedIn; isi berita boleh dibaca enjin carian; pelayar dibawa ke portal) dan **`sitemap.xml`**.
+- Aliran kerja `site-data.yml`: push `data/**` → terbit semula Pages sahaja (tanpa clasp). `deploy.yml` mengabaikan `data/**`.
+- Fungsi pemilik: `staticSiteRebuild()` (jana sekarang + pasang trigger), trigger `staticSiteSync`.
+- 13 ujian baharu (`tests/static.test.js`) dan E2E mod statik (laman utama dibaca dari `data/`, tiada panggilan Apps Script).
+
 ## 1.3.1 — 2026-10-09 · F4.1 Penyerahan aplikasi staf
 
 - **E-mel alu-aluan** apabila Admin mendaftarkan pengguna (Pengguna → Tambah). E-mel menyatakan peranan dan menyertakan butang "Log masuk" ke aplikasi staf. Ia dihantar walaupun `EMAIL_ENABLED` dimatikan, dan kegagalan menghantar tidak membatalkan pendaftaran.

@@ -49,6 +49,11 @@ jobs:
           node tools/dev-server.js --port 8080 > dev-server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:8080/ > /dev/null && break; sleep 1; done
           python tools/e2e.py
+          # Portal statik (F5): data/*.json dijana, bridge mesti membacanya dahulu
+          kill %1 || true
+          node tools/dev-server.js --port 8080 --static > dev-server-static.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/data/bm/home.json > /dev/null && break; sleep 1; done
+          E2E_STATIC=1 E2E_SHOTS=e2e-shots/static python tools/e2e.py
       - name: Simpan tangkapan skrin
         if: always()
         uses: actions/upload-artifact@v4

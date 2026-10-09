@@ -138,4 +138,94 @@ fs.writeFileSync(path.join(out, 'manifest.webmanifest'), manifest('FKM News', '.
 fs.writeFileSync(path.join(out, 'app', 'manifest.webmanifest'), manifest('FKM News Staf', './', './', '../'));
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
 
-console.log(`✓ Dibina → ${path.relative(ROOT, out)}/ (portal + app/, build ${build}, API ${apiOrigin})`);
+/* ------------------------------------------- Portal statik (F5) ------ */
+/*
+ * data/ ditolak ke repo oleh StaticSite.gs setiap kali berita diterbitkan.
+ * Salin ke laman, dan jana halaman /b/<slug>/ (pratonton kongsi + SEO),
+ * dan sitemap.xml. (robots.txt tidak berguna pada laman projek /fkm-news/;
+ * /app/ dilindungi meta noindex.)
+ */
+const baseArg = arg('base', process.env.PUBLIC_BASE_URL || '') || '';
+const base = /^https?:\/\//.test(baseArg) ? baseArg.replace(/\/?$/, '/') : '';
+const dataDir = path.resolve(ROOT, arg('data', 'data'));
+let pages = 0;
+if (fs.existsSync(path.join(dataDir, 'index.json'))) {
+  fs.cpSync(dataDir, path.join(out, 'data'), { recursive: true });
+  const idx = JSON.parse(fs.readFileSync(path.join(dataDir, 'index.json'), 'utf8'));
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const safeSlug = (s, id) => (String(s || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '').slice(0, 120)) || String(id).toLowerCase();
+  const seen = new Set();
+  const urls = [];
+
+  for (const a of idx.articles || []) {
+    let slug = safeSlug(a.slug, a.id);
+    if (seen.has(slug)) slug = slug + '-' + String(a.id).toLowerCase();
+    seen.add(slug);
+    a.pageSlug = slug;
+
+    let art = {};
+    try {
+      const env = JSON.parse(fs.readFileSync(path.join(dataDir, 'bm', 'a', a.id + '.json'), 'utf8'));
+      art = env.data || {};
+    } catch (e) { continue; }
+
+    const url = base ? base + 'b/' + slug + '/' : '';
+    const img = /^https:\/\//.test(a.imageUrl || '') ? a.imageUrl : (base ? base + 'icons/icon-512.png' : '');
+    const desc = a.summary || '';
+    const portal = `../../?view=reader&id=${encodeURIComponent(a.id)}&lang=bm`;
+    const html = `<!doctype html>
+<html lang="ms"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(a.title)} · ${esc(idx.siteName || 'FKM News')}</title>
+<meta name="description" content="${esc(desc)}">
+${url ? `<link rel="canonical" href="${esc(url)}">` : ''}
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="${esc(idx.siteName || 'FKM News')}">
+<meta property="og:title" content="${esc(a.title)}">
+<meta property="og:description" content="${esc(desc)}">
+${url ? `<meta property="og:url" content="${esc(url)}">` : ''}
+${img ? `<meta property="og:image" content="${esc(img)}">` : ''}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#6B1839">
+<link rel="icon" href="../../icons/icon-192.png">
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#F7F5F8;color:#1f1a24;line-height:1.7}
+main{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+.brand{font-weight:700;color:#6B1839;text-decoration:none}
+h1{font-size:1.6rem;line-height:1.3;margin:18px 0 8px}
+.meta{color:#6b6475;font-size:.9rem}
+img{max-width:100%;height:auto;border-radius:10px}
+.btn{display:inline-block;background:#6B1839;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;margin:18px 0}
+</style>
+</head><body><main>
+<a class="brand" href="../../">${esc(idx.siteName || 'FKM News')}</a>
+<h1>${esc(a.title)}</h1>
+<p class="meta">${esc(art.publishedAt || '')} · ${esc(a.category || '')}</p>
+${img && a.imageUrl ? `<p><img src="${esc(a.imageUrl)}" alt="${esc(a.title)}"></p>` : ''}
+<p><strong>${esc(art.summary || desc)}</strong></p>
+<article>${art.content || ''}</article>
+<a class="btn" href="${portal}">Baca di portal ${esc(idx.siteName || 'FKM News')}</a>
+</main>
+<script>location.replace(${JSON.stringify(portal)});</script>
+</body></html>
+`;
+    fs.mkdirSync(path.join(out, 'b', slug), { recursive: true });
+    fs.writeFileSync(path.join(out, 'b', slug, 'index.html'), html);
+    if (url) urls.push({ url, lastmod: a.publishedAt ? new Date(a.publishedAt).toISOString().slice(0, 10) : '' });
+    pages++;
+  }
+  fs.writeFileSync(path.join(out, 'data', 'index.json'), JSON.stringify(idx));
+
+  if (base) {
+    fs.writeFileSync(path.join(out, 'sitemap.xml'),
+      '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      `  <url><loc>${esc(base)}</loc></url>\n` +
+      urls.map(u => `  <url><loc>${esc(u.url)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}</url>`).join('\n') +
+      '\n</urlset>\n');
+  }
+}
+
+console.log(`✓ Dibina → ${path.relative(ROOT, out)}/ (portal + app/ + ${pages} halaman berita statik, build ${build}, API ${apiOrigin})`);

@@ -334,7 +334,9 @@ function route_(action, p, user) {
       return NewsService.listCategories(p.activeOnly !== false);
 
     case 'category.save':
-      return NewsService.saveCategory(user, p.data);
+      var savedCat = NewsService.saveCategory(user, p.data);
+      StaticSite.markDirty('kategori');
+      return savedCat;
 
     /* ---------- Tetapan ---------- */
     case 'settings.schema':
@@ -344,6 +346,7 @@ function route_(action, p, user) {
     case 'settings.update':
       Security.requirePermission(user, 'settings.manage');
       var updated = GlobalSettings.updateGlobalSetting(p.key, p.value, user.userId);
+      StaticSite.markDirty('tetapan ' + p.key);
       AuditService.log(user.userId, AUDIT_ACTION.UPDATE_SETTING, 'SETTING', p.key, '', '',
         'Tetapan dikemas kini: ' + p.key);
       return { key: p.key, value: updated };
@@ -359,10 +362,14 @@ function route_(action, p, user) {
       return GreetingCardService.list(user);
 
     case 'greeting.save':
-      return GreetingCardService.save(user, p.data || {});
+      var savedCard = GreetingCardService.save(user, p.data || {});
+      StaticSite.markDirty('kad ucapan');
+      return savedCard;
 
     case 'greeting.remove':
-      return GreetingCardService.remove(user, p.cardId);
+      var removedCard = GreetingCardService.remove(user, p.cardId);
+      StaticSite.markDirty('kad ucapan');
+      return removedCard;
 
     /* ---------- Audit ---------- */
     case 'audit.list':

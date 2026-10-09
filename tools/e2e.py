@@ -32,8 +32,13 @@ with sync_playwright() as p:
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' and not ignorable(m.text) else None)
         page.on('pageerror', lambda e: errors.append(str(e)))
 
+        reqs = []
+        page.on('request', lambda r: reqs.append((r.method, r.url, r.post_data or '')))
         page.goto(BASE, wait_until='domcontentloaded')
         page.wait_for_selector('.hero-headline', timeout=15000)
+        if os.environ.get('E2E_STATIC'):
+            check(any('/data/bm/home.json' in u for _, u, _ in reqs), 'portal statik: home dibaca dari data/*.json')
+            check(not any(m == 'POST' and 'public.home' in d for m, _, d in reqs), 'portal statik: tiada panggilan Apps Script untuk home')
         check('Explorace' in page.inner_text('.hero-headline'), 'halaman utama: berita utama dipaparkan')
         check(page.locator('[data-open]').count() >= 3, 'halaman utama: kad berita dipaparkan')
         sw = page.evaluate("() => scrollWidth = document.documentElement.scrollWidth - window.innerWidth")

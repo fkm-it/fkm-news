@@ -93,6 +93,22 @@ var PublicService = (function () {
     requireEnabled_();
     rateLimit_();
 
+    /* Kiraan tontonan bagi artikel yang dihidang dari salinan statik
+       (StaticSite.gs). Hanya menambah kiraan; tiada data dipulangkan. */
+    if (action === 'public.view') {
+      PortalService.getArticle(String(payload.newsId || ''), true, 'bm');
+      return { counted: true };
+    }
+
+    return handle_(action, payload, true);
+  }
+
+  /**
+   * Jawapan bagi satu tindakan awam, tanpa had kadar. Dikongsi oleh route()
+   * dan StaticSite (penjanaan salinan statik, countView = false).
+   */
+  function handle_(action, payload, countView) {
+    payload = payload || {};
     var lang = normalizeLang_(payload.lang);
 
     switch (action) {
@@ -139,7 +155,7 @@ var PublicService = (function () {
         }, payload.page, 9);
 
       case 'public.article':
-        return PortalService.getArticle(payload.newsId, true, lang);
+        return PortalService.getArticle(payload.newsId, countView !== false, lang);
 
       default:
         throw Utils.appError('UNKNOWN_ACTION', 'Tindakan tidak dikenali.');
@@ -181,7 +197,7 @@ var PublicService = (function () {
    */
   var READER_ = { userId: '', role: 'PUBLIC_READER', name: 'Pembaca' };
 
-  return { route: route, isEnabled: enabled_ };
+  return { route: route, handle: handle_, isEnabled: enabled_ };
 })();
 
 /**

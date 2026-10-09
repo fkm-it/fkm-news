@@ -228,6 +228,7 @@ var WorkflowService = (function () {
         news: Object.assign({}, news, patch),
         action: action,
         autoPublished: autoPublish,
+        oldStatus: oldStatus,
         newStatus: patch.Status
       };
     });
@@ -260,6 +261,13 @@ var WorkflowService = (function () {
       } catch (e) {
         console.error('IMAGE_SHARING_SYNC_FAIL', newsId, String(e));
       }
+    }
+
+    // Portal statik (F5): jana semula bila kandungan awam berubah.
+    // StaticSite.sync() tidak pernah melempar ralat.
+    if (result.newStatus === STATUS.PUBLISHED || result.newStatus === STATUS.ARCHIVED ||
+        result.oldStatus === STATUS.PUBLISHED) {
+      try { StaticSite.sync(action + ' ' + newsId); } catch (e) { }
     }
 
     // Penerbitan automatik ke media sosial — tidak menggagalkan transition
