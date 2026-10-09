@@ -105,6 +105,20 @@ with sync_playwright() as p:
         page.wait_for_timeout(200)
         check(page.locator('#qrDialog').count() == 0, 'F9: dialog QR ditutup dengan Esc')
 
+        # ---------------------------------------- F10: kad kongsi & arkib
+        page.click('[data-rt="card"]')
+        page.wait_for_selector('#cardDialog[open] img.card-preview', timeout=15000)
+        dims = page.evaluate("() => new Promise(r => { const i = document.querySelector('#cardDialog img'); const f = () => r([i.naturalWidth, i.naturalHeight]); i.complete ? f() : i.onload = f; })")
+        check(dims == [1080, 1080], f'F10: kad kongsi 1080×1080 dijana ({dims[0]}×{dims[1]})')
+        check(page.get_attribute('[data-card-dl]', 'download', timeout=2000).endswith('.png'), 'F10: butang muat turun PNG')
+        sw = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+        check(sw <= 1, f'F10: tiada skrol mendatar dengan dialog kad (lebihan {sw}px)')
+        page.screenshot(path=f'{SHOTS}/{name}-2d-kad.png', full_page=False)
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(200)
+        check(page.locator('#cardDialog').count() == 0, 'F10: dialog kad ditutup')
+        check(page.locator('.pub-footer [data-archive]').count() == 1, 'F10: pautan Arkib berita di kaki portal')
+
         page.goto(BASE + '?view=reader&id=NEWS-2026-00001&lang=en', wait_until='domcontentloaded')
         page.wait_for_selector('.read-wrap', timeout=15000)
         check('Merdeka Explorace' in page.inner_text('.read-wrap'), 'pautan kongsi ?id=&lang=en membuka artikel dalam BI')
@@ -147,6 +161,21 @@ with sync_playwright() as p:
         check(sw <= 1, f'app: papan pemuka tiada skrol mendatar (lebihan {sw}px)')
         page.wait_for_timeout(600)
         page.screenshot(path=f'{SHOTS}/{name}-5-app-dashboard.png', full_page=False)
+
+        # ------------------------------------------- F10: buletin bulanan
+        if name == 'desktop':
+            page.wait_for_selector('#bulletinCard', timeout=15000)
+            page.select_option('#bulMonth', index=0)
+            page.click('[data-bul="preview"]')
+            page.wait_for_selector('#bulPreview', timeout=15000)
+            txt = page.inner_text('#bulPreview')
+            check('buletin bulanan' in txt.lower() and 'Explorace' in txt, 'F10: pratonton buletin bulan ini (Admin)')
+            page.screenshot(path=f'{SHOTS}/{name}-5b-buletin.png', full_page=False)
+            page.click('#modalFoot .btn-ghost')
+            check(page.locator('[data-bul="send"]').count() == 1, 'F10: Admin nampak butang Hantar')
+        else:
+            page.wait_for_timeout(800)
+            check(page.locator('#bulletinCard').count() == 0, 'F10: Penulis tidak nampak kad buletin')
 
         page.goto(BASE + 'app/?page=news-list', wait_until='domcontentloaded')
         page.wait_for_selector('#view table, #view .empty, #view .card', timeout=20000)

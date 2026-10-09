@@ -1,5 +1,14 @@
 # Changelog — FKM News
 
+## 1.8.0 — 2026-10-09 · F10 Kongsi & buletin
+
+- **Kad kongsi 1080×1080** (portal, butang "Kad kongsi" di halaman berita): imej PNG berjenama FKM (marun/emas, kategori, tajuk, tarikh) dilukis dalam pelayar. Muat turun, atau "Kongsi…" terus ke aplikasi telefon (Web Share API). Gambar berita digunakan jika pelayan gambar membenarkannya; jika tidak, kad tipografi.
+- **Arkib garis masa** `/arkib/`: semua berita mengikut bulan (terbaharu dahulu), dengan lompatan bulan. Dijana oleh `build-web` daripada `data/index.json`, ditambah ke `sitemap.xml`. Pautan "Arkib berita" di kaki portal (binaan Pages sahaja).
+- **Buletin bulanan** (`BulletinService.gs`): berita diterbitkan sepanjang sebulan dalam e-mel HTML dan PDF. Kad "Buletin bulanan" pada Papan Pemuka (Admin & Editor: pratonton, muat turun PDF; Admin: hantar). Automatik pada minggu pertama setiap bulan jika `BULLETIN_ENABLED` (lalai mati) kepada `BULLETIN_RECIPIENTS` (BCC, PDF dilampirkan). Senarai dalaman, bukan langganan awam.
+- UI ditambah melalui `bulletin.html` (membalut Papan Pemuka) dan `public-extras.html`; fail sedia ada tidak diubah.
+- Halaman statik: pasangan surrogate yang terpotong (tajuk huruf tebal Unicode) dibuang supaya tiada aksara "�".
+- 10 ujian baharu (`tests/bulletin.test.js`) + E2E (kad 1080×1080 pada 360px & desktop, pautan arkib, pratonton buletin Admin, Penulis tidak nampak kad buletin).
+
 ## 1.7.0 — 2026-10-09 · F9 Alat pembaca: Dengar, Ringkasan 30 saat, Kod QR
 
 Tambahan pada halaman berita portal awam (GitHub Pages dan /exec). Paparan sedia ada tidak diubah; satu baris toolbar baharu muncul di bawah butang Kongsi.

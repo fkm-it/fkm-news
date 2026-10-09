@@ -189,7 +189,9 @@ function makeBlob(bytes, type, name) {
     getName: () => name || 'fail',
     setName(n) { name = n; return this; },
     getDataAsString: () => buf.toString('utf8'),
-    copyBlob() { return makeBlob(buf, type, name); }
+    copyBlob() { return makeBlob(buf, type, name); },
+    // Apps Script menukar HTML → PDF; mock menghasilkan PDF palsu bertanda.
+    getAs(t) { return makeBlob(Buffer.concat([Buffer.from('%PDF-1.4 mock\n'), buf]), t, name); }
   };
 }
 

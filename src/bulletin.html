@@ -1,0 +1,151 @@
+<style>
+  .bul-card { margin-top: var(--gap); }
+  .bul-card .card-head h2 { display: flex; align-items: center; gap: 8px; }
+  .bul-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .bul-controls select { min-height: 36px; max-width: 100%; }
+  .bul-preview { max-height: 60vh; overflow: auto; border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm); background: #fff; color: #16202E; }
+  .bul-preview img { max-width: 100%; height: auto; }
+  .bul-meta { font-size: .8rem; color: var(--muted-color); margin: 10px 0 0; }
+</style>
+<script>
+/* bulletin.html — Buletin bulanan (F10).
+
+   Menambah kad "Buletin bulanan" di hujung Papan Pemuka untuk Admin dan
+   Editor, TANPA mengubah dashboard.html: render() dibalut. Pratonton,
+   muat turun PDF, dan (Admin sahaja) hantar kepada BULLETIN_RECIPIENTS. */
+
+(function () {
+  var MONTHS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos',
+    'September', 'Oktober', 'November', 'Disember'];
+
+  function role() { return (App.state.user || {}).role; }
+
+  function monthOptions() {
+    var d = new Date(), out = [];
+    d.setDate(1);
+    for (var i = 0; i < 12; i++) {
+      var key = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+      out.push('<option value="' + key + '"' + (i === 1 ? ' selected' : '') + '>' +
+        MONTHS[d.getMonth()] + ' ' + d.getFullYear() + (i === 0 ? ' (bulan ini)' : '') + '</option>');
+      d.setMonth(d.getMonth() - 1);
+    }
+    return out.join('');
+  }
+
+  function bodyOf(html) {
+    var m = String(html || '').match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    return m ? m[1] : '';
+  }
+
+  function busy(btn, text) {
+    btn.disabled = true;
+    btn.dataset.label = btn.innerHTML;
+    btn.textContent = text;
+  }
+  function done(btn) {
+    btn.disabled = false;
+    if (btn.dataset.label) btn.innerHTML = btn.dataset.label;
+  }
+
+  function downloadPdf(res) {
+    var bin = atob(res.base64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = res.fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function preview(month, btn) {
+    busy(btn, 'Menjana…');
+    App.call('bulletin.preview', { month: month }).then(function (r) {
+      done(btn);
+      App.openModal({
+        title: r.subject,
+        wide: true,
+        body: '<div class="bul-preview" id="bulPreview">' + bodyOf(r.html) + '</div>' +
+          '<p class="bul-meta">' + App.esc(r.count + ' berita · paparan sebenar e-mel/PDF') + '</p>',
+        buttons: [{ label: 'Tutup', className: 'btn-ghost', onClick: function () { App.closeModal(); } }]
+      });
+    }).catch(function (e) { done(btn); App.toast(e.message, 'error'); });
+  }
+
+  function pdf(month, btn) {
+    busy(btn, 'Menjana PDF…');
+    App.call('bulletin.pdf', { month: month }).then(function (r) {
+      done(btn);
+      downloadPdf(r);
+      App.toast('PDF dimuat turun (' + r.count + ' berita).', 'success');
+    }).catch(function (e) { done(btn); App.toast(e.message, 'error'); });
+  }
+
+  function send(month, label, st, btn) {
+    App.confirmModal('Hantar buletin ' + label + '?',
+      'Buletin akan dihantar (BCC) kepada ' + st.recipients + ' penerima dalam BULLETIN_RECIPIENTS, ' +
+      'berserta lampiran PDF.', 'Hantar', 'success').then(function (ok) {
+      if (!ok) return;
+      busy(btn, 'Menghantar…');
+      App.call('bulletin.send', { month: month }).then(function (r) {
+        done(btn);
+        if (r.sent) App.toast('Buletin dihantar kepada ' + r.recipients + ' penerima.', 'success');
+        else App.toast('Tiada berita diterbitkan pada bulan itu; buletin tidak dihantar.', 'warning');
+      }).catch(function (e) { done(btn); App.toast(e.message, 'error'); });
+    });
+  }
+
+  function card(st) {
+    var isAdmin = role() === 'ADMIN';
+    var auto = st.enabled
+      ? 'Automatik: dihantar pada minggu pertama setiap bulan kepada ' + st.recipients + ' penerima.'
+      : 'Penghantaran automatik dimatikan (BULLETIN_ENABLED).';
+    return App.h('<section class="card bul-card" id="bulletinCard">' +
+      '<div class="card-head"><h2>📰 Buletin bulanan</h2></div>' +
+      '<div class="card-pad">' +
+        '<p class="small muted" style="margin:0 0 12px">Himpunan semua berita yang diterbitkan dalam sebulan, ' +
+          'dalam format e-mel dan PDF.</p>' +
+        '<div class="bul-controls">' +
+          '<select id="bulMonth" aria-label="Bulan buletin">' + monthOptions() + '</select>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-bul="preview">Pratonton</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-bul="pdf">Muat turun PDF</button>' +
+          (isAdmin ? '<button type="button" class="btn btn-sm" data-bul="send"' +
+            (st.recipients ? '' : ' disabled title="Tetapkan BULLETIN_RECIPIENTS dalam Tetapan"') +
+            '>Hantar sekarang</button>' : '') +
+        '</div>' +
+        '<p class="bul-meta">' + App.esc(auto) +
+          (st.lastSent ? App.esc(' Terakhir dihantar: ' + st.lastSent + '.') : '') + '</p>' +
+      '</div></section>');
+  }
+
+  var dash = App.views['dashboard'];
+  if (!dash) return;
+  var origRender = dash.render;
+  dash.render = function (container) {
+    var r = origRender.apply(this, arguments);
+    if (role() !== 'ADMIN' && role() !== 'EDITOR') return r;
+    Promise.resolve(r).then(function () {
+      return App.call('bulletin.status');
+    }).then(function (st) {
+      if (!document.body.contains(container) || container.querySelector('#bulletinCard')) return;
+      var c = card(st);
+      container.appendChild(c);
+      c.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-bul]');
+        if (!b || b.disabled) return;
+        var sel = c.querySelector('#bulMonth');
+        var month = sel.value;
+        var label = sel.options[sel.selectedIndex].text.replace(/ \(bulan ini\)$/, '');
+        if (b.dataset.bul === 'preview') preview(month, b);
+        else if (b.dataset.bul === 'pdf') pdf(month, b);
+        else if (b.dataset.bul === 'send') send(month, label, st, b);
+      });
+    }).catch(function () { });
+    return r;
+  };
+})();
+</script>

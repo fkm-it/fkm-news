@@ -152,7 +152,11 @@ let pages = 0;
 if (fs.existsSync(path.join(dataDir, 'index.json'))) {
   fs.cpSync(dataDir, path.join(out, 'data'), { recursive: true });
   const idx = JSON.parse(fs.readFileSync(path.join(dataDir, 'index.json'), 'utf8'));
-  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c =>
+  /* Ringkasan dipotong di pelayan boleh memecahkan pasangan surrogate
+     (tajuk huruf tebal Unicode) → buang separuh yang tinggal. */
+  const esc = v => String(v == null ? '' : v)
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
+    .replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const safeSlug = (s, id) => (String(s || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-')
     .replace(/^-+|-+$/g, '').slice(0, 120)) || String(id).toLowerCase();
@@ -218,6 +222,81 @@ ${img && a.imageUrl ? `<p><img src="${esc(a.imageUrl)}" alt="${esc(a.title)}"></
     pages++;
   }
   fs.writeFileSync(path.join(out, 'data', 'index.json'), JSON.stringify(idx));
+
+  /* --------------------------------------- Arkib garis masa (F10) ---- */
+  const MONTHS = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos',
+    'September', 'Oktober', 'November', 'Disember'];
+  const myt = ms => new Date(Number(ms) + 8 * 3600 * 1000);   // Asia/Kuala_Lumpur
+  const groups = new Map();
+  for (const a of (idx.articles || []).filter(x => x.publishedAt)
+    .sort((x, y) => y.publishedAt - x.publishedAt)) {
+    const d = myt(a.publishedAt);
+    const key = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+    if (!groups.has(key)) groups.set(key, { label: MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear(), items: [] });
+    groups.get(key).items.push({ a, day: d.getUTCDate() });
+  }
+  const total = [...groups.values()].reduce((n, g) => n + g.items.length, 0);
+  const archiveUrl = base ? base + 'arkib/' : '';
+  const archive = `<!doctype html>
+<html lang="ms"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arkib berita · ${esc(idx.siteName || 'FKM News')}</title>
+<meta name="description" content="Semua berita ${esc(idx.siteName || 'FKM News')} mengikut bulan, ${esc(idx.facultyName || '')}.">
+${archiveUrl ? `<link rel="canonical" href="${esc(archiveUrl)}">` : ''}
+<meta name="theme-color" content="#6B1839">
+<link rel="icon" href="../icons/icon-192.png">
+<style>
+:root{--p:#6B1839;--a:#C8952B;--bg:#F7F5F8;--s:#fff;--t:#16202E;--m:#5C6B7F;--b:#E7E2EA}
+@media (prefers-color-scheme:dark){:root{--bg:#141019;--s:#1D1724;--t:#F2EEF5;--m:#A79FB2;--b:#33293D;--p:#E4A3BF}}
+*{box-sizing:border-box}
+body{font-family:Poppins,"Segoe UI",system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--t);line-height:1.6}
+header{background:#6B1839;color:#fff;padding:28px 16px}
+header div,main{max-width:760px;margin:0 auto}
+header a{color:#fff;text-decoration:none;font-size:.85rem;opacity:.85}
+header h1{margin:8px 0 2px;font-size:1.7rem;line-height:1.25}
+header p{margin:0;font-size:.85rem;opacity:.85}
+main{padding:12px 16px 56px}
+nav.months{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
+nav.months a{font-size:.75rem;padding:5px 10px;border-radius:999px;border:1px solid var(--b);background:var(--s);color:var(--t);text-decoration:none}
+section{margin-top:26px}
+h2{position:sticky;top:0;background:var(--bg);margin:0;padding:10px 0;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--p);z-index:1}
+h2 span{color:var(--m);font-weight:400;letter-spacing:0;text-transform:none}
+ol{list-style:none;margin:0;padding:0 0 0 22px;border-left:2px solid var(--b)}
+li{position:relative;padding:10px 0 14px}
+li:before{content:"";position:absolute;left:-29px;top:17px;width:12px;height:12px;border-radius:50%;background:var(--s);border:3px solid #C8952B}
+li a{color:var(--t);text-decoration:none;font-weight:600;line-height:1.4}
+li a:hover{color:var(--p);text-decoration:underline}
+.meta{font-size:.75rem;color:var(--m);margin-top:2px}
+.sum{font-size:.85rem;color:var(--m);margin:4px 0 0}
+</style>
+</head><body>
+<header><div>
+<a href="../">← ${esc(idx.siteName || 'FKM News')}</a>
+<h1>Arkib berita</h1>
+<p>${total} berita · ${esc(idx.facultyName || '')}</p>
+</div></header>
+<main>
+<nav class="months" aria-label="Lompat ke bulan">${[...groups.entries()].map(([k, g]) =>
+    `<a href="#m-${k}">${esc(g.label)}</a>`).join('')}</nav>
+${[...groups.entries()].map(([k, g]) => `<section id="m-${k}">
+<h2>${esc(g.label)} <span>· ${g.items.length} berita</span></h2>
+<ol>
+${g.items.map(({ a, day }) => {
+    const href = a.pageSlug ? `../b/${a.pageSlug}/` : `../?view=reader&id=${encodeURIComponent(a.id)}&lang=bm`;
+    return `<li><a href="${esc(href)}">${esc(a.title)}</a>
+<div class="meta">${day} ${esc(g.label)}${a.category ? ' · ' + esc(a.category) : ''}</div>
+${a.summary ? `<p class="sum">${esc(a.summary)}</p>` : ''}</li>`;
+  }).join('\n')}
+</ol>
+</section>`).join('\n')}
+${total ? '' : '<p>Belum ada berita diterbitkan.</p>'}
+</main>
+</body></html>
+`;
+  fs.mkdirSync(path.join(out, 'arkib'), { recursive: true });
+  fs.writeFileSync(path.join(out, 'arkib', 'index.html'), archive);
+  if (archiveUrl) urls.unshift({ url: archiveUrl, lastmod: '' });
 
   if (base) {
     fs.writeFileSync(path.join(out, 'sitemap.xml'),

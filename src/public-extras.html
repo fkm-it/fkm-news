@@ -54,6 +54,13 @@ a.rt-btn { text-decoration: none; }
   width: 220px; height: 220px; max-width: 100%; display: block; margin: 6px auto 12px;
   background: #fff; border-radius: var(--radius-sm);
 }
+.qr-dialog .card-preview {
+  width: 100%; height: auto; aspect-ratio: 1; display: block; margin: 8px 0 12px;
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-2);
+}
+#cardDialog { width: min(420px, calc(100vw - 32px)); }
+#cardDialog p { word-break: normal; }
+.archive-link { color: inherit; font-weight: 500; }
 .qr-dialog h2 { font-size: 1rem; margin: 0 0 4px; }
 .qr-dialog p { font-size: .78rem; color: var(--muted-color); margin: 0 0 14px; word-break: break-all; }
 .qr-dialog .qr-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
@@ -81,7 +88,11 @@ var PubExtras = (function () {
       listenSummary: 'Dengar ringkasan', qr: 'Kod QR',
       qrTitle: 'Imbas untuk membaca berita ini', qrOpen: 'Buka imej QR', close: 'Tutup',
       qrFail: 'Kod QR memerlukan sambungan internet.',
-      noVoice: 'Suara Bahasa Melayu tiada pada peranti ini; suara lalai digunakan.'
+      noVoice: 'Suara Bahasa Melayu tiada pada peranti ini; suara lalai digunakan.',
+      card: 'Kad kongsi', cardTitle: 'Kad kongsi 1080×1080', download: 'Muat turun',
+      shareImg: 'Kongsi…', cardMaking: 'Menyediakan kad…',
+      cardNote: 'Sesuai untuk Instagram, Facebook dan WhatsApp Status.',
+      archive: 'Arkib berita'
     },
     en: {
       listen: 'Listen', pause: 'Pause', resume: 'Resume', stop: 'Stop',
@@ -90,11 +101,16 @@ var PubExtras = (function () {
       listenSummary: 'Listen to summary', qr: 'QR code',
       qrTitle: 'Scan to read this story', qrOpen: 'Open QR image', close: 'Close',
       qrFail: 'The QR code needs an internet connection.',
-      noVoice: 'No English voice on this device; the default voice is used.'
+      noVoice: 'No English voice on this device; the default voice is used.',
+      card: 'Share card', cardTitle: 'Share card 1080×1080', download: 'Download',
+      shareImg: 'Share…', cardMaking: 'Preparing card…',
+      cardNote: 'Ready for Instagram, Facebook and WhatsApp Status.',
+      archive: 'News archive'
     }
   };
 
   var ICON = {
+    card: '<rect x="4" y="4" width="16" height="16" rx="2.5"/><circle cx="9" cy="9.5" r="1.6"/><path d="m20 15-4.5-4.5L6 20"/>',
     listen: '<path d="M4 9.5v5h3.5L12 19V5L7.5 9.5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>',
     pause: '<path d="M8 5v14M16 5v14"/>',
     stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
@@ -106,7 +122,8 @@ var PubExtras = (function () {
   var current = null;        /* { a, lang, root } untuk artikel yang dipaparkan */
   var observer = null;
 
-  function t(key) { return (TXT[current && current.lang] || TXT.bm)[key] || key; }
+  function pageLang() { return document.documentElement.lang === 'en' ? 'en' : 'bm'; }
+  function t(key) { return (TXT[current ? current.lang : pageLang()] || TXT.bm)[key] || key; }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -294,6 +311,234 @@ var PubExtras = (function () {
     return QR_BASE + '?size=' + size + 'x' + size + '&margin=12&ecc=M&data=' + encodeURIComponent(link);
   }
 
+  /* ------------------------------------------------- Kad kongsi (F10) */
+
+  var CARD = 1080;
+
+  function loadImage(src) {
+    return new Promise(function (resolve) {
+      if (!/^(https:|\.)/.test(String(src || ''))) return resolve(null);
+      var img = new Image();
+      var timer = setTimeout(function () { resolve(null); }, 6000);
+      img.crossOrigin = 'anonymous';
+      img.onload = function () { clearTimeout(timer); resolve(img); };
+      img.onerror = function () { clearTimeout(timer); resolve(null); };
+      img.src = src;
+    });
+  }
+
+  /** Bungkus teks kepada baris dalam lebar maksimum. */
+  function wrapLines(ctx, text, maxWidth) {
+    var words = clean(text).split(' '), lines = [], line = '';
+    words.forEach(function (w) {
+      var test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+      else line = test;
+    });
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function cssVar(name, fallback) {
+    try {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    } catch (e) { return fallback; }
+  }
+
+  /**
+   * Lukis kad 1080×1080. Gambar berita digunakan jika pelayan gambar
+   * membenarkan CORS; jika tidak, kad tipografi (tanpa gambar) dilukis.
+   */
+  function drawCard(a, img) {
+    var c = document.createElement('canvas');
+    c.width = c.height = CARD;
+    var x = c.getContext('2d');
+    var primary = cssVar('--primary-color', '#6B1839');
+    var accent = cssVar('--accent-color', '#C8952B');
+    var deep = cssVar('--sidebar-to', '#3B1244');
+    var font = 'Poppins, "Segoe UI", system-ui, sans-serif';
+    var pad = 64;
+
+    var g = x.createLinearGradient(0, 0, CARD, CARD);
+    g.addColorStop(0, primary);
+    g.addColorStop(1, deep);
+    x.fillStyle = g;
+    x.fillRect(0, 0, CARD, CARD);
+
+    var top = 120;
+    if (img) {
+      var h = 560, r = Math.max(CARD / img.naturalWidth, h / img.naturalHeight);
+      var w2 = img.naturalWidth * r, h2 = img.naturalHeight * r;
+      x.drawImage(img, (CARD - w2) / 2, (h - h2) / 2, w2, h2);
+      var fade = x.createLinearGradient(0, h - 260, 0, h);
+      fade.addColorStop(0, 'rgba(0,0,0,0)');
+      fade.addColorStop(1, primary);
+      x.fillStyle = fade;
+      x.fillRect(0, h - 260, CARD, 262);
+      top = h + 10;
+    } else {
+      x.strokeStyle = accent;
+      x.globalAlpha = 0.18;
+      x.lineWidth = 3;
+      [220, 330, 440].forEach(function (rr) { x.beginPath(); x.arc(CARD, 0, rr, 0, Math.PI * 2); x.stroke(); });
+      x.globalAlpha = 1;
+      x.fillStyle = accent;
+      x.font = '700 30px ' + font;
+      x.fillText('FKM NEWS', pad, pad + 30);
+      top = 300;
+    }
+
+    /* Kategori */
+    var cat = clean(a.categoryName || '').toUpperCase();
+    if (cat) {
+      x.font = '600 26px ' + font;
+      var cw = x.measureText(cat).width + 40;
+      x.fillStyle = accent;
+      roundRect(x, pad, top, cw, 48, 24);
+      x.fill();
+      x.fillStyle = primary;
+      x.fillText(cat, pad + 20, top + 33);
+      top += 82;
+    }
+
+    /* Tajuk: kecilkan fon sehingga muat */
+    var maxLines = img ? 4 : 6, size = img ? 58 : 72, lines;
+    var bottomLimit = CARD - 170;
+    do {
+      x.font = '700 ' + size + 'px ' + font;
+      lines = wrapLines(x, a.title || '', CARD - pad * 2);
+      if (lines.length <= maxLines && top + lines.length * size * 1.2 <= bottomLimit) break;
+      size -= 4;
+    } while (size > 36);
+    var room = Math.max(1, Math.floor((bottomLimit - top) / (size * 1.2)));
+    if (lines.length > room) {
+      lines = lines.slice(0, room);
+      lines[room - 1] = lines[room - 1].replace(/\s+\S*$/, '') + '…';
+    }
+    x.fillStyle = '#FFFFFF';
+    lines.forEach(function (ln, i) { x.fillText(ln, pad, top + size + i * size * 1.2); });
+
+    /* Kaki */
+    x.fillStyle = accent;
+    x.fillRect(pad, CARD - 140, 96, 6);
+    x.fillStyle = '#FFFFFF';
+    x.font = '700 34px ' + font;
+    x.fillText('FKM News', pad, CARD - 82);
+    x.globalAlpha = 0.8;
+    x.font = '400 24px ' + font;
+    x.fillText('Fakulti Kejuruteraan Mekanikal, UTM', pad, CARD - 46);
+    var date = clean(a.publishedAt || '');
+    if (date) {
+      x.textAlign = 'right';
+      x.font = '500 26px ' + font;
+      x.fillText(date, CARD - pad, CARD - 82);
+      x.textAlign = 'left';
+    }
+    x.globalAlpha = 1;
+    return c;
+  }
+
+  function roundRect(x, l, t, w, h, r) {
+    x.beginPath();
+    x.moveTo(l + r, t);
+    x.arcTo(l + w, t, l + w, t + h, r);
+    x.arcTo(l + w, t + h, l, t + h, r);
+    x.arcTo(l, t + h, l, t, r);
+    x.arcTo(l, t, l + w, t, r);
+    x.closePath();
+  }
+
+  function toBlob(canvas) {
+    return new Promise(function (resolve) {
+      try { canvas.toBlob(function (b) { resolve(b); }, 'image/png'); }
+      catch (e) { resolve(null); }  /* kanvas tercemar (gambar tanpa CORS) */
+    });
+  }
+
+  /** Hasilkan kad; jika gambar mencemarkan kanvas, lukis semula tanpa gambar. */
+  function makeCard(a) {
+    var fontsReady = (document.fonts && document.fonts.load)
+      ? Promise.all([document.fonts.load('700 60px Poppins'), document.fonts.load('400 24px Poppins')]).catch(function () { })
+      : Promise.resolve();
+    return fontsReady.then(function () { return loadImage(a.imageUrl); }).then(function (img) {
+      var canvas = drawCard(a, img);
+      return toBlob(canvas).then(function (blob) {
+        if (blob || !img) return { canvas: canvas, blob: blob };
+        var plain = drawCard(a, null);
+        return toBlob(plain).then(function (b2) { return { canvas: plain, blob: b2 }; });
+      });
+    });
+  }
+
+  function fileName(a) {
+    var base = String(a.slug || a.newsId || 'berita').toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 60);
+    return 'fkm-news-' + (base || 'berita') + '.png';
+  }
+
+  function openCard(btn) {
+    var a = current.a;
+    var label = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = t('cardMaking');
+    makeCard(a).then(function (res) {
+      btn.disabled = false;
+      btn.innerHTML = label;
+      if (!res.blob) return;
+      var url = URL.createObjectURL(res.blob);
+      var file = null;
+      try { file = new File([res.blob], fileName(a), { type: 'image/png' }); } catch (e) { }
+      var canShare = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+      var d = dialog('cardDialog', t('cardTitle'),
+        '<img class="card-preview" alt="' + esc(t('card') + ': ' + a.title) + '" src="' + url + '">' +
+        '<p>' + esc(t('cardNote')) + '</p>' +
+        '<div class="qr-actions">' +
+          '<a class="rt-btn" data-card-dl href="' + url + '" download="' + esc(fileName(a)) + '">' + esc(t('download')) + '</a>' +
+          (canShare ? '<button type="button" class="rt-btn" data-card-share>' + esc(t('shareImg')) + '</button>' : '') +
+          '<button type="button" class="rt-btn" data-qr-close>' + esc(t('close')) + '</button>' +
+        '</div>', function () { URL.revokeObjectURL(url); });
+      var sh = d.querySelector('[data-card-share]');
+      if (sh) sh.addEventListener('click', function () {
+        navigator.share({ files: [file], title: a.title, text: a.title + (a.shareUrl ? ' ' + a.shareUrl : '') })
+          .catch(function () { });
+      });
+    }).catch(function () { btn.disabled = false; btn.innerHTML = label; });
+  }
+
+  /** Dialog modal ringkas (dikongsi oleh QR dan kad). */
+  function dialog(id, title, bodyHtml, onClose) {
+    var old = document.getElementById(id);
+    if (old) old.remove();
+    var d = document.createElement('dialog');
+    d.id = id;
+    d.className = 'qr-dialog';
+    d.setAttribute('aria-labelledby', id + 'Title');
+    d.innerHTML = '<h2 id="' + id + 'Title">' + esc(title) + '</h2>' + bodyHtml;
+    document.body.appendChild(d);
+    var close = d.querySelector('[data-qr-close]');
+    if (close) close.addEventListener('click', function () { d.close(); });
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+    d.addEventListener('close', function () { d.remove(); if (onClose) onClose(); });
+    if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+    return d;
+  }
+
+  /** Pautan "Arkib berita" di kaki portal — hanya pada binaan GitHub Pages. */
+  function addArchiveLink() {
+    if (!document.querySelector('link[rel="manifest"]')) return;
+    var foot = document.querySelector('.pub-footer');
+    if (!foot) return;
+    var link = foot.querySelector('[data-archive]');
+    if (!link) {
+      link = document.createElement('a');
+      link.setAttribute('data-archive', '');
+      link.className = 'archive-link';
+      link.href = 'arkib/';
+      foot.appendChild(link);
+    }
+    link.textContent = t('archive');
+  }
+
   function openQr() {
     var a = current.a;
     var old = document.getElementById('qrDialog');
@@ -378,6 +623,10 @@ var PubExtras = (function () {
       html += '<button type="button" class="rt-btn" data-rt="summary" aria-pressed="false">' +
         icon('summary') + '<span>' + esc(t('summary')) + '</span></button>';
     }
+    if (typeof HTMLCanvasElement !== 'undefined') {
+      html += '<button type="button" class="rt-btn" data-rt="card">' + icon('card') +
+        '<span>' + esc(t('card')) + '</span></button>';
+    }
     if (a.shareUrl) {
       html += '<button type="button" class="rt-btn" data-rt="qr">' + icon('qr') +
         '<span>' + esc(t('qr')) + '</span></button>';
@@ -400,6 +649,7 @@ var PubExtras = (function () {
       } else if (k === 'stop') stopSpeech();
       else if (k === 'summary') toggleSummary(b);
       else if (k === 'qr') openQr();
+      else if (k === 'card') openCard(b);
     });
     renderTts();
 
@@ -416,6 +666,13 @@ var PubExtras = (function () {
     }
   }
 
+  /* Pautan arkib di kaki portal; dikemas kini apabila bahasa bertukar. */
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addArchiveLink);
+  else addArchiveLink();
+  if (typeof MutationObserver !== 'undefined') {
+    new MutationObserver(addArchiveLink).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+  }
+
   /* Suara dimuat secara tak segerak dalam Chrome. */
   if (ttsSupported() && 'onvoiceschanged' in window.speechSynthesis) {
     window.speechSynthesis.onvoiceschanged = function () { };
@@ -429,7 +686,8 @@ var PubExtras = (function () {
     chunks: chunks,
     pickVoice: pickVoice,
     readingText: readingText,
-    qrUrl: qrUrl
+    qrUrl: qrUrl,
+    addArchiveLink: addArchiveLink
   };
 })();
 window.PubExtras = PubExtras;

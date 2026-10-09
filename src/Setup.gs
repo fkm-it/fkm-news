@@ -175,6 +175,12 @@ function dailyMaintenance() {
   } catch (e) {
     console.error('REMINDER_FAIL', String(e));
   }
+  // F10: buletin bulanan (minggu pertama setiap bulan, jika dihidupkan)
+  try {
+    console.log('Buletin: ' + JSON.stringify(BulletinService.runMonthly()));
+  } catch (e) {
+    console.error('BULLETIN_FAIL', String(e));
+  }
   // F5: tolak salinan statik yang tertunda (jika ada)
   try { StaticSite.syncIfDirty(); } catch (e) { console.error('STATIC_DAILY_FAIL', String(e)); }
 }

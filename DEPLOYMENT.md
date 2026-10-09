@@ -50,6 +50,15 @@ Repo `fkm-it/fkm-news` → **Settings → Secrets and variables → Actions**
 4. App staf → Tetapan → **Feature**: `AI_ENABLED` = hidup; `AI_MODEL` = `claude-sonnet-5-5` (kualiti) atau `claude-haiku-5-5` (jimat); `AI_MONTHLY_BUDGET_USD` = had sebulan.
 5. Semak: borang Tulis berita menunjukkan butang **✨ Pembantu Penulis AI**.
 
+## 1.5 Buletin bulanan (F10) — pilihan
+
+1. Buka `/app/` sebagai Admin → **Tetapan** → kumpulan **Notification**.
+2. `BULLETIN_RECIPIENTS`: alamat e-mel penerima, dipisahkan koma (contoh senarai mel staf FKM). Penerima dihantar sebagai BCC.
+3. Uji dahulu: **Papan Pemuka** → kad **Buletin bulanan** → pilih bulan → **Pratonton** / **Muat turun PDF** / **Hantar sekarang**.
+4. Bila berpuas hati, hidupkan `BULLETIN_ENABLED`. Buletin bulan lepas dihantar secara automatik pada minggu pertama setiap bulan (sekali sahaja), oleh `dailyMaintenance`.
+
+Kuota e-mel Apps Script (akaun Workspace): 1,500 penerima sehari. Setiap alamat BCC dikira satu.
+
 ## 2. Rollback
 Apps Script → **Deploy → Manage deployments → ✏️ → Version** → pilih versi sebelumnya → Deploy.
 Atau `git revert` commit bermasalah dan push.

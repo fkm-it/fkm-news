@@ -133,6 +133,8 @@ var GlobalSettings = (function () {
     AI_MONTHLY_BUDGET_USD: { group: 'Feature', type: 'number', isPublic: false, def: 5, desc: 'Had perbelanjaan Claude API sebulan (USD). Panggilan AI ditolak apabila dicapai.' },
     REMINDER_ENABLED:   { group: 'Notification', type: 'boolean', isPublic: false, def: true, desc: 'Peringatan harian (Isnin–Jumaat) bagi berita tersangkut dalam semakan' },
     REMINDER_DAYS:      { group: 'Notification', type: 'number', isPublic: false, def: 2, desc: 'Berita dianggap tertunggak selepas berapa hari tanpa tindakan' },
+    BULLETIN_ENABLED:   { group: 'Notification', type: 'boolean', isPublic: false, def: false, desc: 'Hantar buletin bulanan (berita bulan lepas) secara automatik pada minggu pertama setiap bulan' },
+    BULLETIN_RECIPIENTS:{ group: 'Notification', type: 'string', isPublic: false, def: '', desc: 'Penerima buletin bulanan (e-mel dipisahkan koma, contoh senarai mel staf). Dihantar sebagai BCC' },
     IN_APP_ENABLED:     { group: 'Notification', type: 'boolean', isPublic: true,  def: true, desc: 'Notifikasi dalam sistem' },
     ADMIN_EMAIL:        { group: 'Notification', type: 'string', isPublic: false, def: '', desc: 'E-mel Admin untuk makluman sistem' },
     EMAIL_SENDER_NAME:  { group: 'Notification', type: 'string', isPublic: false, def: 'FKM News', desc: 'Nama pengirim e-mel' },

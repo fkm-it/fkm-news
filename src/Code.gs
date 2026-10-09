@@ -335,6 +335,24 @@ function route_(action, p, user) {
       }
       return AiService.social(user, NewsService.getDetail(user, p.newsId));
 
+    /* ---------- Buletin bulanan (F10) ---------- */
+    case 'bulletin.status':
+      requireStaffRole_(user, [ROLES.ADMIN, ROLES.EDITOR], 'Buletin');
+      return BulletinService.status();
+
+    case 'bulletin.preview':
+      requireStaffRole_(user, [ROLES.ADMIN, ROLES.EDITOR], 'Buletin');
+      var bul = BulletinService.render(p.month);
+      return { month: bul.month, label: bul.label, count: bul.count, subject: bul.subject, html: bul.html };
+
+    case 'bulletin.pdf':
+      requireStaffRole_(user, [ROLES.ADMIN, ROLES.EDITOR], 'Buletin');
+      return BulletinService.pdf(p.month);
+
+    case 'bulletin.send':
+      requireStaffRole_(user, [ROLES.ADMIN], 'Menghantar buletin');
+      return BulletinService.send(p.month, { userId: user.userId, allowEmpty: false });
+
     case 'news.saveEnglish':
       return NewsService.saveEnglish(user, p.newsId, p.data || {});
 
@@ -484,7 +502,7 @@ function setThemeMode_(mode) {
  * Operasi tulis dihadkan lebih ketat daripada bacaan.
  */
 function enforceRateLimit_(user, action) {
-  var isWrite = /\.(create|update|delete|save|upload|remove|transition|publish|markRead|markAllRead|setTheme|setActingRole|reorder|setFeatured|toggleSocial|saveCredentials|saveEnglish|draft|review|translate|social)$/.test(action);
+  var isWrite = /\.(create|update|delete|save|upload|remove|transition|publish|markRead|markAllRead|setTheme|setActingRole|reorder|setFeatured|toggleSocial|saveCredentials|saveEnglish|draft|review|translate|social|send|pdf)$/.test(action);
 
   var limit = isWrite ? 60 : 300;   // setiap tetingkap
   var windowSeconds = 60;
@@ -510,4 +528,13 @@ function enforceRateLimit_(user, action) {
   try {
     cache.put(key, String(current + 1), windowSeconds);
   } catch (e) { /* cache tidak tersedia — teruskan tanpa had */ }
+}
+
+/** Hadkan tindakan kepada peranan tertentu (peranan bertindak, seperti semakan lain). */
+function requireStaffRole_(user, roles, what) {
+  if (!user || roles.indexOf(user.role) === -1) {
+    throw Utils.appError('FORBIDDEN', what + ' untuk ' + roles.map(function (r) {
+      return r === ROLES.ADMIN ? 'Admin' : r === ROLES.EDITOR ? 'Editor' : r;
+    }).join(' dan ') + ' sahaja.');
+  }
 }

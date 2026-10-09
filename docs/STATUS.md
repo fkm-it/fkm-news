@@ -1,6 +1,6 @@
 # Status naik taraf FKM News (kaedah D'Ruang)
 
-**Dikemas kini:** 9 Okt 2026 · Versi live: **v1.7.0**
+**Dikemas kini:** 9 Okt 2026 · Versi live: **v1.8.0**
 **Repo:** github.com/fkm-it/fkm-news (awam) · CI/CD: setiap push ke `main` → ujian → `clasp push` → kemas kini deployment → GitHub Pages
 
 ## URL
@@ -24,7 +24,7 @@
 | F7 Peringatan tertunggak (v1.5.0) | ✅ live | `ReminderService.gs`: satu ringkasan sehari bekerja kepada Admin/Editor/Penulis; `REMINDER_ENABLED`, `REMINDER_DAYS` |
 | F8 AI staf (v1.6.0) | ✅ live, mati secara lalai | Pembantu Penulis, Semakan AI, Versi BI, kapsyen sosial; aktif selepas `FKMNEWS_ANTHROPIC_KEY` + `AI_ENABLED` (DEPLOYMENT §1.4). Bil API berasingan daripada langganan Claude.ai |
 | F9 Pembaca (v1.7.0) | ✅ deploy | `public-extras.html`: Dengar (suara pelayar, ms→id), Ringkasan 30 saat (ayat utama setiap perenggan, tanpa AI/kos), Kod QR pautan kongsi |
-| F10 Kongsi & buletin | ⏳ | Kad kongsi 1080×1080, buletin bulanan PDF/e-mel, arkib garis masa |
+| F10 Kongsi & buletin (v1.8.0) | ✅ deploy | Kad kongsi 1080×1080 (pelayar), `/arkib/` garis masa, buletin bulanan e-mel+PDF (`BulletinService.gs`, kad Papan Pemuka; automatik mati secara lalai, DEPLOYMENT §1.5) |
 
 ## Keputusan Za
 - Kod dan interface sedia ada dikekalkan (tidak dipindah ke enjin modul JSON templat)
@@ -47,5 +47,6 @@
 - Gambar draf (Drive "domain with link") mungkin tidak dipaparkan di github.io untuk pelayar tanpa log masuk akaun UTM; jika berlaku, hidangkan melalui backend
 - Projek Apps Script `1O6hRQ8ob…` (tercipta di PC Za) bukan FKM NEWS; semak dan padam jika tidak diperlukan
 - F9: uji butang Dengar pada telefon Za (Android/iPhone). Jika tiada suara Melayu, suara Indonesia digunakan; jika tiada kedua-duanya, suara lalai
+- F10: tetapkan `BULLETIN_RECIPIENTS`, uji Pratonton/PDF, kemudian hidupkan `BULLETIN_ENABLED` jika mahu automatik
 - Jangan sunting kod dalam editor Apps Script; semua perubahan melalui repo
 - Jangan padam Script Property `FKMNEWS_AUTH_PEPPER` (semua sesi web akan tamat)
