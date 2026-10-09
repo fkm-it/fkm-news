@@ -128,6 +128,8 @@ var GlobalSettings = (function () {
 
     /* ---------- Notification ---------- */
     EMAIL_ENABLED:      { group: 'Notification', type: 'boolean', isPublic: false, def: true, desc: 'Hantar notifikasi e-mel' },
+    REMINDER_ENABLED:   { group: 'Notification', type: 'boolean', isPublic: false, def: true, desc: 'Peringatan harian (Isnin–Jumaat) bagi berita tersangkut dalam semakan' },
+    REMINDER_DAYS:      { group: 'Notification', type: 'number', isPublic: false, def: 2, desc: 'Berita dianggap tertunggak selepas berapa hari tanpa tindakan' },
     IN_APP_ENABLED:     { group: 'Notification', type: 'boolean', isPublic: true,  def: true, desc: 'Notifikasi dalam sistem' },
     ADMIN_EMAIL:        { group: 'Notification', type: 'string', isPublic: false, def: '', desc: 'E-mel Admin untuk makluman sistem' },
     EMAIL_SENDER_NAME:  { group: 'Notification', type: 'string', isPublic: false, def: 'FKM News', desc: 'Nama pengirim e-mel' },

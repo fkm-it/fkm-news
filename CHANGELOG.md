@@ -1,5 +1,13 @@
 # Changelog — FKM News
 
+## 1.5.0 — 2026-10-09 · F7 Peringatan tertunggak
+
+- `ReminderService.gs`: setiap hari bekerja (dijalankan oleh `dailyMaintenance`), berita yang tersangkut lebih daripada `REMINDER_DAYS` hari (lalai 2) dikumpul. **Satu ringkasan** dihantar setiap penerima: Admin untuk SUBMITTED/RESUBMITTED/ADMIN_REVIEW, Editor untuk EDITOR_REVIEW/APPROVED, dan Penulis untuk REVISION_REQUIRED. Setiap ringkasan disertakan dengan notifikasi dalam app. Hujung minggu dilangkau, dan sistem hanya berjalan sekali sehari.
+- E-mel ringkasan menyenaraikan berita (sehingga 15) dengan pautan terus ke aplikasi staf (`STAFF_APP_URL`).
+- Tetapan baharu (Notification): `REMINDER_ENABLED`, `REMINDER_DAYS`. Hormat `EMAIL_ENABLED` dan `IN_APP_ENABLED`.
+- `dailyMaintenance` juga menolak salinan portal statik yang tertunda.
+- 8 ujian baharu (`tests/reminder.test.js`).
+
 ## 1.4.0 — 2026-10-09 · F5 Portal Statik Pantas
 
 Portal awam kini membaca berita daripada fail statik di GitHub Pages (CDN). Apps Script hanya dihubungi untuk carian, kiraan tontonan dan berita yang belum disalin. Paparan portal tidak berubah.

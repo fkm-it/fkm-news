@@ -201,6 +201,7 @@ function formatDate(d, tz, fmt) {
   d = new Date(d);
   // Ujian berjalan dalam UTC+8 (Asia/Kuala_Lumpur) tanpa mengira TZ mesin.
   const t = new Date(d.getTime() + 8 * 3600 * 1000);
+  if (fmt === 'u') return String(((t.getUTCDay() + 6) % 7) + 1);   // ISO: 1=Isnin … 7=Ahad
   const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return String(fmt)
     .replace(/yyyy/g, t.getUTCFullYear())

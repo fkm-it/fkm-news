@@ -112,6 +112,42 @@ var NotificationService = (function () {
     }
   }
 
+  /**
+   * E-mel ringkasan berbilang berita (peringatan tertunggak).
+   * @param {Array<{newsId,title,statusLabel,days}>} items
+   */
+  function sendDigest(toEmail, subject, message, items) {
+    if (!GlobalSettings.get('EMAIL_ENABLED') || !toEmail) return false;
+    try {
+      var s = GlobalSettings.getPublicSettings();
+      var esc = Security.escapeHtml;
+      var url = appUrl_();
+      var rows = (items || []).slice(0, 15).map(function (it) {
+        var link = url ? url + '?page=news-detail&id=' + encodeURIComponent(it.newsId) : '';
+        return '<tr><td style="padding:8px 0;border-bottom:1px solid ' + s.BORDER_COLOR + '">' +
+          (link ? '<a href="' + esc(link) + '" style="color:' + s.PRIMARY_COLOR + ';font-weight:600;text-decoration:none">' +
+            esc(it.title) + '</a>' : esc(it.title)) +
+          '<div style="font-size:12px;color:' + s.MUTED_COLOR + '">' + esc(it.statusLabel) +
+          ' · menunggu ' + Number(it.days) + ' hari</div></td></tr>';
+      }).join('');
+      var intro = String(message).split('\n')[0];
+      var html = emailBody_(subject, intro, '', '').replace('</p></div>',
+        '</p><table style="width:100%;border-collapse:collapse;font-size:14px">' + rows + '</table></div>');
+      var prefix = GlobalSettings.get('EMAIL_SUBJECT_PREFIX');
+      MailApp.sendEmail({
+        to: toEmail,
+        subject: (prefix ? prefix + ' ' : '') + subject,
+        htmlBody: html,
+        body: message,
+        name: GlobalSettings.get('EMAIL_SENDER_NAME')
+      });
+      return true;
+    } catch (e) {
+      console.error('DIGEST_FAIL', toEmail, String(e));
+      return false;
+    }
+  }
+
   function emailBody_(subject, message, newsId, webAppUrl) {
     var s = GlobalSettings.getPublicSettings();
     var link = webAppUrl ? (webAppUrl + '?page=news-detail&id=' + encodeURIComponent(newsId)) : '';
@@ -238,6 +274,7 @@ var NotificationService = (function () {
     createInApp: createInApp,
     sendEmail: sendEmail,
     sendWelcome: sendWelcome,
+    sendDigest: sendDigest,
     appUrl: appUrl_,
     notifyUser: notifyUser,
     notifyRole: notifyRole,

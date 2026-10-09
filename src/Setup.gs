@@ -169,6 +169,14 @@ function dailyMaintenance() {
   } catch (e) {
     console.error('MAINTENANCE_FAIL', String(e));
   }
+  // F7: peringatan berita tertunggak (hari bekerja sahaja)
+  try {
+    console.log('Peringatan: ' + JSON.stringify(ReminderService.run()));
+  } catch (e) {
+    console.error('REMINDER_FAIL', String(e));
+  }
+  // F5: tolak salinan statik yang tertunda (jika ada)
+  try { StaticSite.syncIfDirty(); } catch (e) { console.error('STATIC_DAILY_FAIL', String(e)); }
 }
 
 /**
