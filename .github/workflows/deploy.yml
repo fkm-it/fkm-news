@@ -7,6 +7,7 @@
 #                           MESTI akaun pemilik skrip: mohdzaki@mail.fkm.utm.my
 #   Variable SCRIPT_ID      1y545hp-MSu0PFU9u1S1UIXyusHPwdDFF7od3Pd-d1g1ikv7e5YOWjsc9
 #   Variable DEPLOYMENT_ID  ID deployment Web App sedia ada (AKfy…)
+#   Settings → Pages → Source: GitHub Actions   (portal awam, F3)
 name: Deploy
 
 on:
@@ -20,6 +21,8 @@ concurrency:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 jobs:
   ci:
@@ -77,3 +80,26 @@ jobs:
       - name: Buang kelayakan
         if: always()
         run: rm -f "$HOME/.clasprc.json" .clasp.json
+
+  pages:
+    name: GitHub Pages (portal awam + PWA)
+    needs: [ci, gas]
+    if: ${{ always() && needs.ci.result == 'success' && needs.gas.result != 'failure' && vars.DEPLOYMENT_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Bina portal
+        run: node tools/build-web.js --api "https://script.google.com/macros/s/${{ vars.DEPLOYMENT_ID }}/exec" --out dist
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

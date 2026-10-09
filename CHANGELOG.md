@@ -1,5 +1,15 @@
 # Changelog — FKM News
 
+## 1.2.0 — 2026-10-09 · F3 Portal awam di GitHub Pages + PWA
+
+Portal awam kini juga dihidangkan dari **GitHub Pages** (`https://fkm-it.github.io/fkm-news/`), tanpa banner Apps Script dan boleh dipasang sebagai app telefon. `Public.html` tidak diubah; antara muka sama. Aplikasi staf kekal di URL `/exec`.
+
+- `WebBridge.gs`: `doPost` dengan senarai putih `publicApi` dan `publicSidebar` sahaja (semakan `hasOwnProperty`; `constructor`/`toString` ditolak).
+- `pwa/bridge.js`: `google.script.run` tiruan yang menghantar `fetch` POST (text/plain, tanpa cookie) ke `/exec`.
+- `tools/build-web.js`: himpun `Public.html` + `css` menjadi `index.html` statik; parameter `?id=` dan `?lang=` dibaca dari URL; CSP, manifest, ikon, service worker.
+- `tools/dev-server.js` + `tools/e2e.py`: E2E pada 360px dan desktop (berita utama, kad, artikel, pautan kongsi BI, tiada skrol mendatar, PWA, 0 ralat konsol).
+- CI: binaan web + E2E; Deploy: kerja GitHub Pages selepas Apps Script.
+
 ## 1.1.0 — 2026-10-09 · F1 Tampalan keselamatan
 
 Tiada perubahan pada antara muka. Rujuk `docs/AUDIT_F0_FKM_NEWS.md`.

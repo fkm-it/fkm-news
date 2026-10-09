@@ -319,3 +319,28 @@ test('runSecurityTests() sedia ada masih lulus sepenuhnya', () => {
   assert.ok(m, report.slice(0, 200));
   assert.equal(m[1], m[2], report.split('GAGAL')[1] || report.slice(0, 400));
 });
+
+/* ================================================================ F3 */
+
+test('F3: doPost hanya membenarkan publicApi dan publicSidebar', () => {
+  const gas = installed({});
+  gas.as(OWNER);
+  gas.ctx.GlobalSettings.updateGlobalSetting('PUBLIC_PORTAL_ENABLED', true, 'TEST');
+  gas.anon();
+  const post = body => JSON.parse(gas.ctx.doPost({ postData: { contents: typeof body === 'string' ? body : JSON.stringify(body) } })._text);
+
+  assert.equal(post({ fn: 'publicApi', args: ['public.home', {}] }).ok, true);
+  assert.equal(post({ fn: 'publicSidebar', args: ['bm'] }).ok, true);
+
+  const usersBefore = gas.ctx.SheetDB.findAll('USERS').length;
+  for (const fn of ['api', 'setupSystem', 'updateGlobalSetting', 'include', 'doGet', 'WEB_BRIDGE_ALLOWED_', 'constructor', '__proto__', 'toString']) {
+    const r = post({ fn, args: ['penyerang@mail.fkm.utm.my', {}] });
+    assert.equal(r.ok, false, fn);
+  }
+  gas.ctx.SheetDB.invalidate();
+  assert.equal(gas.ctx.SheetDB.findAll('USERS').length, usersBefore);
+
+  assert.equal(post('bukan json').error.code, 'BAD_REQUEST');
+  assert.equal(post('').ok, false);
+  assert.equal(post({ fn: 'publicApi', args: ['user.list', {}] }).ok, false, 'tindakan bukan awam ditolak');
+});

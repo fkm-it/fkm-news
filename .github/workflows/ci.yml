@@ -25,3 +25,36 @@ jobs:
         run: npm test
       - name: Semakan statik & imbasan rahsia
         run: npm run check
+      - name: Binaan portal web (percubaan)
+        run: node tools/build-web.js --api http://localhost:8080/__api --out .verify-web
+
+  e2e:
+    name: E2E portal (telefon 360px + desktop)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pasang Playwright
+        run: pip install playwright && python -m playwright install --with-deps chromium
+      - name: Jalankan E2E
+        run: |
+          node tools/build-web.js --api http://localhost:8080/__api --out .verify-web
+          node tools/dev-server.js --port 8080 > dev-server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/ > /dev/null && break; sleep 1; done
+          python tools/e2e.py
+      - name: Simpan tangkapan skrin
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-shots
+          path: |
+            e2e-shots
+            dev-server.log
+          retention-days: 7
