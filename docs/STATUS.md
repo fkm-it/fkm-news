@@ -1,6 +1,6 @@
 # Status naik taraf FKM News (kaedah D'Ruang)
 
-**Dikemas kini:** 9 Okt 2026 · Versi live: **v1.8.1**
+**Dikemas kini:** 9 Okt 2026 · Versi live: **v1.9.0**
 **Repo:** github.com/fkm-it/fkm-news (awam) · CI/CD: setiap push ke `main` → ujian → `clasp push` → kemas kini deployment → GitHub Pages
 
 ## URL
@@ -24,12 +24,13 @@
 | F7 Peringatan tertunggak (v1.5.0) | ✅ live | `ReminderService.gs`: satu ringkasan sehari bekerja kepada Admin/Editor/Penulis; `REMINDER_ENABLED`, `REMINDER_DAYS` |
 | F8 AI staf (v1.6.0) | ✅ live, mati secara lalai | Pembantu Penulis, Semakan AI, Versi BI, kapsyen sosial; aktif selepas `FKMNEWS_ANTHROPIC_KEY` + `AI_ENABLED` (DEPLOYMENT §1.4). Bil API berasingan daripada langganan Claude.ai |
 | F9 Pembaca (v1.7.0) | ✅ deploy | `public-extras.html`: Dengar **dimatikan** (v1.8.1, suara robotik), Ringkasan 30 saat (ayat utama setiap perenggan, tanpa AI/kos), Kod QR pautan kongsi |
+| F11 App telefon & push (v1.9.0) | ✅ deploy, menunggu Firebase Za | Pasang app (portal & staf); push staf (semua notifikasi aliran kerja) & pembaca (berita baharu, opt-in) melalui FCM; `PushService.gs`, `pwa/push.js`; DEPLOYMENT §1.6 |
 | F10 Kongsi & buletin (v1.8.0) | ✅ deploy | Kad kongsi 1080×1080 (pelayar), `/arkib/` garis masa, buletin bulanan e-mel+PDF (`BulletinService.gs`, kad Papan Pemuka; automatik mati secara lalai, DEPLOYMENT §1.5) |
 
 ## Keputusan Za
 - Kod dan interface sedia ada dikekalkan (tidak dipindah ke enjin modul JSON templat)
 - Gambar: Google Drive dahulu
-- Notifikasi pelanggan awam: tiada buat masa ini
+- Notifikasi pembaca awam: opt-in melalui butang 🔔 (F11, keputusan Za 9 Okt; sebelum ini tiada)
 - Aliran semakan: ikut dokumen keperluan (Admin semak format → Editor putuskan)
 - Log masuk app staf di Pages: OTP ke e-mel UTM
 - Satu pautan `/app/` untuk semua peranan (Penulis, Admin, Editor); paparan ikut peranan. Admin mendaftarkan Penulis, Editor dan Admin lain melalui Pengguna → Tambah
@@ -48,5 +49,6 @@
 - Projek Apps Script `1O6hRQ8ob…` (tercipta di PC Za) bukan FKM NEWS; semak dan padam jika tidak diperlukan
 - F9: Dengar dimatikan. Jika mahu semula: suara AI semula jadi (contoh Google Cloud TTS ms-MY) + baca ringkasan sahaja
 - F10: tetapkan `BULLETIN_RECIPIENTS`, uji Pratonton/PDF, kemudian hidupkan `BULLETIN_ENABLED` jika mahu automatik
+- F11: sediakan projek Firebase (DEPLOYMENT §1.6), tetapkan `FIREBASE_WEB_CONFIG`, `FIREBASE_VAPID_KEY`, Script Property `FKMNEWS_FCM_SERVICE_ACCOUNT`, hidupkan `PUSH_ENABLED`, uji di Android & iPhone
 - Jangan sunting kod dalam editor Apps Script; semua perubahan melalui repo
 - Jangan padam Script Property `FKMNEWS_AUTH_PEPPER` (semua sesi web akan tamat)

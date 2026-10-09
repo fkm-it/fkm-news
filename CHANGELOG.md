@@ -1,5 +1,16 @@
 # Changelog — FKM News
 
+## 1.9.0 — 2026-10-09 · F11 App telefon & notifikasi push
+
+- **Pasang app**: portal (FKM News) dan app staf (FKM News Staf) boleh dipasang ke Skrin Utama telefon/komputer: butang "Pasang app" (Android/Chrome/Edge), arahan Add to Home Screen (iPhone).
+- **Notifikasi pembaca**: butang 🔔 di kepala portal → "Hidupkan notifikasi". Pembaca menerima push apabila berita **diterbitkan buat kali pertama**, dalam bahasa yang dipilih (BM/BI). Tanpa akaun; boleh dimatikan bila-bila masa. Pautan notifikasi membuka berita di portal.
+- **Notifikasi staf**: setiap notifikasi dalam app sedia ada (berita dihantar, disemak, perlu pembetulan, diluluskan, diterbitkan, peringatan tertunggak) turut dihantar ke telefon Penulis/Admin/Editor yang menghidupkannya (menu profil → Notifikasi telefon & app, atau kad pada Papan Pemuka). Butang "Hantar ujian". Log keluar menyahdaftar peranti (telefon dikongsi). Had 5 peranti setiap pengguna.
+- `PushService.gs`: Firebase Cloud Messaging HTTP v1, mesej data-sahaja; token akses ditandatangani dengan kunci akaun servis (Script Property `FKMNEWS_FCM_SERVICE_ACCOUNT`, tiada skop Apps Script baharu). Token peranti dalam sheet `PUSH_TOKENS` (dicipta automatik), tidak pernah dipulangkan ke pelayar; token mati dipadam selepas penghantaran.
+- `pwa/sw.js` memaparkan notifikasi dan membuka pautan; `pwa/push.js` memuat Firebase SDK hanya apabila diperlukan. CSP: gstatic.com, firebaseinstallations, fcmregistrations.
+- Tetapan baharu (Notification): `PUSH_ENABLED` (lalai mati), `FIREBASE_WEB_CONFIG`, `FIREBASE_VAPID_KEY`. Persediaan: DEPLOYMENT §1.6.
+- Keputusan Za berubah: notifikasi kepada pembaca awam kini disokong (opt-in).
+- 10 ujian baharu (`tests/push.test.js`: JWT RS256 disahkan, aliran PUBLISH/ARCHIVE/UNARCHIVE, token mati, had peranti) + mod E2E `E2E_PUSH` (Firebase tiruan): langgan/berhenti pembaca pada 360px & desktop, kad Papan Pemuka, push ujian, log keluar.
+
 ## 1.8.1 — 2026-10-09 · Butang Dengar dimatikan
 
 - Butang **Dengar** dan **Dengar ringkasan** disembunyikan atas keputusan Za: suara pelayar terlalu robotik dan membaca keseluruhan berita. Kod dikekalkan (`LISTEN_ENABLED = false` dalam `public-extras.html`). Ringkasan 30 saat, Kod QR dan Kad kongsi tidak berubah.

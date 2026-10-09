@@ -22,6 +22,27 @@ const gas = installed({});
 const c = gas.ctx;
 seedDemo(gas);
 
+/* Notifikasi push (F11): Firebase tiruan untuk E2E */
+const pushSends = [];
+if (process.argv.includes('--push')) {
+  const crypto = require('crypto');
+  const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  gas.as(OWNER);
+  c.GlobalSettings.updateGlobalSetting('PUSH_ENABLED', true, 'DEV');
+  c.GlobalSettings.updateGlobalSetting('FIREBASE_WEB_CONFIG',
+    'const firebaseConfig = { apiKey: "AIza-dev", projectId: "fkm-news-dev", messagingSenderId: "123", appId: "1:123:web:abc" };', 'DEV');
+  c.GlobalSettings.updateGlobalSetting('FIREBASE_VAPID_KEY', 'BDevVapidKey', 'DEV');
+  gas.scriptProps.setProperty('FKMNEWS_FCM_SERVICE_ACCOUNT', JSON.stringify({
+    project_id: 'fkm-news-dev', client_email: 'dev@fkm-news-dev.iam.gserviceaccount.com',
+    private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) }));
+  gas.anon();
+  gas.state.fetchHandler = (url, params) => {
+    if (/oauth2\.googleapis\.com/.test(url)) return { getResponseCode: () => 200, getContentText: () => '{"access_token":"dev"}' };
+    if (/fcm\.googleapis\.com/.test(url)) pushSends.push(JSON.parse(params.payload).message);
+    return { getResponseCode: () => 200, getContentText: () => '{}' };
+  };
+}
+
 /* Portal statik (F5): tulis data/ daripada StaticSite.buildFiles() ke laman */
 if (process.argv.includes('--static')) {
   gas.as(OWNER);
@@ -73,6 +94,16 @@ http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(out._text);
     });
+    return;
+  }
+  // DEV SAHAJA: token push berdaftar & mesej yang dihantar (F11)
+  if (req.method === 'GET' && req.url.startsWith('/__push')) {
+    gas.as(OWNER);
+    const sh = c.SpreadsheetApp.openById(c.CONFIG.getSpreadsheetId()).getSheetByName('PUSH_TOKENS');
+    const rows = sh ? sh.getDataRange().getValues().slice(1) : [];
+    gas.anon();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ rows, sends: pushSends }));
     return;
   }
   // DEV SAHAJA: kod OTP terakhir bagi e-mel (tiada dalam binaan sebenar)

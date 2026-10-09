@@ -1,0 +1,190 @@
+<style>
+  .push-hint { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: var(--gap);
+    padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--border-color);
+    background: var(--surface-color); box-shadow: var(--shadow); }
+  .push-hint .ph-icon { font-size: 1.5rem; line-height: 1; }
+  .push-hint .ph-text { flex: 1; min-width: 200px; }
+  .push-hint .ph-text strong { display: block; font-size: .92rem; }
+  .push-hint .ph-text span { font-size: .8rem; color: var(--muted-color); }
+  .push-modal h3 { font-size: .9rem; margin: 0 0 6px; }
+  .push-modal section + section { border-top: 1px solid var(--border-color); margin-top: 14px; padding-top: 14px; }
+  .push-modal p { margin: 0 0 10px; font-size: .86rem; }
+  .push-ok { color: var(--success-color); font-weight: 500; }
+</style>
+<script>
+/* push-staff.html — notifikasi telefon & pasang app untuk staf (F11).
+
+   Hanya aktif di app staf GitHub Pages (window.FKMPush + FKMNEWS_WEB).
+   Menambah, TANPA mengubah fail sedia ada:
+     - item "Notifikasi telefon & app" dalam menu profil
+     - kad cadangan pada Papan Pemuka (boleh ditutup)
+     - nyahdaftar peranti semasa log keluar (telefon dikongsi)
+   Notifikasi yang dihantar = notifikasi dalam app yang sedia ada
+   (penghantaran, semakan, pembetulan, terbit, peringatan). */
+
+(function () {
+  var F = window.FKMPush;
+  if (!F || !window.FKMNEWS_WEB) return;
+
+  var FLAG = 'FKMNEWS_PUSH_STAFF';
+  var HINT = 'FKMNEWS_PUSH_HINT_OFF';
+  var synced = false;
+
+  function cfg() { return F.configFrom(App.state.settings || {}); }
+  function uid() { return String((App.state.user || {}).userId || ''); }
+  function staffOn() { return F.store(FLAG) === uid() && uid() && F.permission() === 'granted'; }
+
+  function enable() {
+    return F.enable(cfg()).then(function (tok) {
+      return App.call('push.register', { token: tok, device: F.deviceLabel() });
+    }).then(function () {
+      F.store(FLAG, uid());
+      F.store(HINT, '1');
+    });
+  }
+
+  function disable() {
+    var tok = F.savedToken();
+    var job = tok ? App.call('push.unregister', { token: tok }).catch(function () { }) : Promise.resolve();
+    return job.then(function () { F.store(FLAG, null); });
+  }
+
+  function bodyHtml() {
+    var c = cfg(), h = '<div class="push-modal"><section><h3>🔔 Notifikasi telefon</h3>';
+    if (!c) {
+      h += '<p>Notifikasi push belum diaktifkan. ' +
+        (App.state.user && App.state.user.role === 'ADMIN'
+          ? 'Tetapkan PUSH_ENABLED, FIREBASE_WEB_CONFIG dan FIREBASE_VAPID_KEY dalam Tetapan.'
+          : 'Hubungi pentadbir sistem.') + '</p>';
+    } else if (F.needsInstallFirst()) {
+      h += '<p>Di iPhone/iPad, notifikasi hanya berfungsi dalam app yang dipasang: tekan butang ' +
+        '<strong>Kongsi</strong>, pilih <strong>Add to Home Screen</strong>, buka FKM News Staf dari Skrin ' +
+        'Utama, kemudian hidupkan di sini.</p>';
+    } else if (staffOn()) {
+      h += '<p class="push-ok">✓ Aktif pada peranti ini. Anda akan menerima notifikasi aliran kerja ' +
+        '(berita dihantar, disemak, perlu pembetulan, diterbitkan, peringatan).</p>' +
+        '<div class="row"><button class="btn btn-ghost btn-sm" data-pm="test">Hantar ujian</button>' +
+        '<button class="btn btn-ghost btn-sm" data-pm="off">Matikan pada peranti ini</button></div>';
+    } else {
+      h += '<p>Terima notifikasi di telefon apabila ada berita untuk disemak atau tindakan diperlukan.</p>' +
+        '<button class="btn btn-sm" data-pm="on">Hidupkan notifikasi</button>';
+    }
+    h += '</section><section><h3>📲 Pasang app</h3>';
+    if (F.standalone()) h += '<p class="push-ok">✓ App sudah dipasang pada peranti ini.</p>';
+    else if (F.canInstall()) h += '<p>Buka FKM News Staf seperti app biasa dari Skrin Utama.</p>' +
+      '<button class="btn btn-ghost btn-sm" data-pm="install">Pasang app</button>';
+    else h += '<p>' + (F.isIOS
+      ? 'Tekan butang <strong>Kongsi</strong> → <strong>Add to Home Screen</strong>.'
+      : 'Dalam menu pelayar (⋮), pilih <strong>Install app</strong> atau <strong>Add to Home screen</strong>.') + '</p>';
+    return h + '</section></div>';
+  }
+
+  function openModal() {
+    App.openModal({
+      title: 'Notifikasi telefon & app',
+      body: '<div id="pushModalBody">' + bodyHtml() + '</div>',
+      buttons: [{ label: 'Tutup', className: 'btn-ghost', onClick: function () { App.closeModal(); } }]
+    });
+    var root = document.getElementById('pushModalBody');
+    root.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pm]');
+      if (!b) return;
+      var k = b.dataset.pm;
+      var refresh = function () { var r = document.getElementById('pushModalBody'); if (r) r.innerHTML = bodyHtml(); };
+      if (k === 'install') { F.install().then(refresh); return; }
+      b.disabled = true;
+      var job = k === 'on' ? enable().then(function () { App.toast('Notifikasi telefon dihidupkan.', 'success'); })
+        : k === 'off' ? disable().then(function () { App.toast('Notifikasi telefon dimatikan pada peranti ini.', 'success'); })
+        : App.call('push.test').then(function (r) { App.toast('Ujian dihantar ke ' + r.sent + ' peranti.', 'success'); });
+      job.catch(function (err) { App.toast(err.message || String(err), 'error'); }).then(refresh);
+    });
+  }
+
+  /* --------------------------------------------- Item menu profil */
+  function addMenuItem(menu) {
+    if (!menu || menu.querySelector('[data-push-menu]')) return;
+    var item = document.createElement('button');
+    item.className = 'dropdown-item';
+    item.setAttribute('data-push-menu', '1');
+    item.innerHTML = '<span aria-hidden="true" style="width:16px;text-align:center">📲</span>Notifikasi telefon &amp; app';
+    item.addEventListener('click', function () {
+      var btn = document.getElementById('profileBtn');
+      if (btn && menu.offsetParent !== null) btn.click();
+      openModal();
+    });
+    var logout = menu.querySelector('[data-logout]');
+    menu.insertBefore(item, logout || null);
+    resync();
+  }
+
+  function watchMenu() {
+    var menu = document.getElementById('profileMenu');
+    if (!menu) return;
+    addMenuItem(menu);
+    new MutationObserver(function () { addMenuItem(menu); }).observe(menu, { childList: true });
+  }
+
+  /* ------------------------------------- Segerak token (sekali sehari) */
+  function resync() {
+    if (synced || !staffOn() || !cfg()) return;
+    synced = true;
+    var last = Number(F.store('FKMNEWS_PUSH_STAFF_SYNC') || 0);
+    if (Date.now() - last < 86400000) return;
+    F.token(cfg()).then(function (tok) {
+      if (!tok) return;
+      return App.call('push.register', { token: tok, device: F.deviceLabel() }).then(function () {
+        F.store('FKMNEWS_PUSH_STAFF_SYNC', String(Date.now()));
+      });
+    }).catch(function () { });
+  }
+
+  /* --------------------------------- Kad cadangan pada Papan Pemuka */
+  var dash = App.views['dashboard'];
+  if (dash) {
+    var orig = dash.render;
+    dash.render = function (container) {
+      var r = orig.apply(this, arguments);
+      Promise.resolve(r).then(function () {
+        if (!cfg() || staffOn() || F.store(HINT) || F.permission() === 'denied') return;
+        if (!document.body.contains(container) || container.querySelector('.push-hint')) return;
+        var card = App.h('<div class="push-hint" role="note"><span class="ph-icon" aria-hidden="true">📲</span>' +
+          '<div class="ph-text"><strong>Terima notifikasi di telefon</strong>' +
+          '<span>Dapatkan makluman segera apabila berita perlu tindakan anda.</span></div>' +
+          '<div class="row"><button class="btn btn-sm" data-ph="on">Hidupkan</button>' +
+          '<button class="btn btn-ghost btn-sm" data-ph="later">Nanti</button></div></div>');
+        container.insertBefore(card, container.firstChild);
+        card.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-ph]');
+          if (!b) return;
+          if (b.dataset.ph === 'later') { F.store(HINT, '1'); card.remove(); return; }
+          if (F.needsInstallFirst()) { card.remove(); openModal(); return; }
+          b.disabled = true;
+          enable().then(function () {
+            card.remove();
+            App.toast('Notifikasi telefon dihidupkan.', 'success');
+          }).catch(function (err) { b.disabled = false; App.toast(err.message || String(err), 'error'); });
+        });
+      }).catch(function () { });
+      return r;
+    };
+  }
+
+  /* ---------------------- Log keluar: hentikan push ke peranti ini */
+  var web = window.FKMNEWS_WEB;
+  if (web && typeof web.logout === 'function' && !web.__pushWrapped) {
+    var origLogout = web.logout;
+    web.logout = function () {
+      var args = arguments, self = this;
+      if (!staffOn()) return origLogout.apply(self, args);
+      var done = false;
+      var go = function () { if (!done) { done = true; origLogout.apply(self, args); } };
+      setTimeout(go, 2500);
+      disable().then(go, go);
+    };
+    web.__pushWrapped = true;
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchMenu);
+  else watchMenu();
+})();
+</script>

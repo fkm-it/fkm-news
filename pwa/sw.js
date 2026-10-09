@@ -31,3 +31,40 @@ self.addEventListener('fetch', function (e) {
     })
   );
 });
+
+/* ---------------------------------------------- Notifikasi push (F11) ----
+   Mesej data-sahaja daripada Firebase Cloud Messaging (PushService.gs):
+   { data: { title, body, link, tag, image } }. Service worker ini yang
+   memaparkan notifikasi supaya paparan sama di Android, desktop dan iPhone. */
+self.addEventListener('push', function (e) {
+  var j = {};
+  try { j = e.data ? e.data.json() : {}; } catch (err) { j = {}; }
+  var d = j.data || {};
+  var n = j.notification || {};
+  var title = d.title || n.title || 'FKM News';
+  var opts = {
+    body: d.body || n.body || '',
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: { link: d.link || (j.fcmOptions && j.fcmOptions.link) || './' },
+    lang: 'ms'
+  };
+  if (d.tag) { opts.tag = d.tag; opts.renotify = true; }
+  if (d.image) opts.image = d.image;
+  e.waitUntil(self.registration.showNotification(title, opts));
+});
+
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var link = (e.notification.data && e.notification.data.link) || './';
+  var url;
+  try { url = new URL(link, self.registration.scope).href; } catch (err) { url = self.registration.scope; }
+  /* Hanya buka pautan https atau laman sendiri */
+  if (!/^https:/.test(url) && new URL(url).origin !== self.location.origin) url = self.registration.scope;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].url === url && 'focus' in list[i]) return list[i].focus();
+    }
+    return self.clients.openWindow ? self.clients.openWindow(url) : null;
+  }));
+});

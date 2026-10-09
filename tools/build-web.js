@@ -37,11 +37,12 @@ const apiOrigin = new URL(api).origin;
 const qp = k => `(new URLSearchParams(location.search).get('${k}') || '')`;
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://www.gstatic.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' https: data: blob:",
-  `connect-src 'self' ${apiOrigin} https://script.googleusercontent.com https://api.open-meteo.com`,
+  `connect-src 'self' ${apiOrigin} https://script.googleusercontent.com https://api.open-meteo.com` +
+    ' https://www.gstatic.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com',
   "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://drive.google.com",
   "base-uri 'self'",
   "form-action 'self'",
@@ -83,7 +84,8 @@ function buildPage(srcFile, scriptlets, bridge, rel, manifest, build, extraHead)
 
   const boot =
     `<script>window.FKMNEWS_CONFIG = ${JSON.stringify({ apiUrl: api, build })};</script>\n` +
-    `<script src="${rel}${bridge}?v=${build}"></script>\n`;
+    `<script src="${rel}${bridge}?v=${build}"></script>\n` +
+    `<script src="${rel}push.js?v=${build}"></script>\n`;
   const firstScript = html.search(/<script\b/i);
   html = html.slice(0, firstScript) + boot + html.slice(firstScript);
 
@@ -95,7 +97,7 @@ function buildPage(srcFile, scriptlets, bridge, rel, manifest, build, extraHead)
 
 const srcHash = crypto.createHash('sha256');
 for (const f of fs.readdirSync(SRC).filter(f => f.endsWith('.html')).sort()) srcHash.update(fs.readFileSync(path.join(SRC, f)));
-for (const f of ['bridge.js', 'app-bridge.js', 'sw.js']) srcHash.update(fs.readFileSync(path.join(PWA, f)));
+for (const f of ['bridge.js', 'app-bridge.js', 'sw.js', 'push.js']) srcHash.update(fs.readFileSync(path.join(PWA, f)));
 const build = srcHash.update(api).digest('hex').slice(0, 10);
 
 /* Portal awam (/) — Public.html */
@@ -118,7 +120,7 @@ fs.mkdirSync(path.join(out, 'app'), { recursive: true });
 fs.writeFileSync(path.join(out, 'index.html'), portalHtml);
 fs.writeFileSync(path.join(out, '404.html'), portalHtml);
 fs.writeFileSync(path.join(out, 'app', 'index.html'), appHtml);
-for (const f of ['bridge.js', 'app-bridge.js']) fs.copyFileSync(path.join(PWA, f), path.join(out, f));
+for (const f of ['bridge.js', 'app-bridge.js', 'push.js']) fs.copyFileSync(path.join(PWA, f), path.join(out, f));
 fs.writeFileSync(path.join(out, 'sw.js'),
   fs.readFileSync(path.join(PWA, 'sw.js'), 'utf8').replace('__BUILD__', build));
 for (const f of fs.readdirSync(path.join(PWA, 'icons'))) {

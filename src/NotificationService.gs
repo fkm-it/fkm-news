@@ -43,6 +43,9 @@ var NotificationService = (function () {
 
   /** Cipta notifikasi dalam sistem untuk satu pengguna */
   function createInApp(userId, newsId, type, subject, message) {
+    // F11: salinan sebagai push ke telefon pengguna (jika didaftarkan)
+    try { PushService.notifyUser(userId, newsId, subject, message); }
+    catch (e) { console.error('PUSH_USER_FAIL', userId, String(e)); }
     if (!GlobalSettings.get('IN_APP_ENABLED')) return null;
     var record = {
       NotificationID: Utils.notificationId(),

@@ -61,6 +61,16 @@ a.rt-btn { text-decoration: none; }
 #cardDialog { width: min(420px, calc(100vw - 32px)); }
 #cardDialog p { word-break: normal; }
 .archive-link { color: inherit; font-weight: 500; }
+#pubPush { position: relative; }
+#pubPush .push-dot {
+  position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--success-color, #1E7A4B); box-shadow: 0 0 0 2px var(--surface-color);
+}
+.push-sec { text-align: left; border-top: 1px solid var(--border-color); padding: 14px 0 4px; margin-top: 4px; }
+.push-sec h3 { font-size: .86rem; margin: 0 0 6px; }
+.push-sec p { word-break: normal !important; text-align: left; margin: 0 0 10px !important; }
+.push-sec .rt-btn { margin: 0 0 6px; }
+.push-ok { color: var(--success-color, #1E7A4B); font-weight: 500; }
 .qr-dialog h2 { font-size: 1rem; margin: 0 0 4px; }
 .qr-dialog p { font-size: .78rem; color: var(--muted-color); margin: 0 0 14px; word-break: break-all; }
 .qr-dialog .qr-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
@@ -92,7 +102,16 @@ var PubExtras = (function () {
       card: 'Kad kongsi', cardTitle: 'Kad kongsi 1080×1080', download: 'Muat turun',
       shareImg: 'Kongsi…', cardMaking: 'Menyediakan kad…',
       cardNote: 'Sesuai untuk Instagram, Facebook dan WhatsApp Status.',
-      archive: 'Arkib berita'
+      archive: 'Arkib berita',
+      pushTitle: 'Notifikasi & app', pushBtn: 'Notifikasi & app',
+      pushIntro: 'Terima notifikasi di telefon setiap kali berita FKM baharu diterbitkan.',
+      pushOn: 'Hidupkan notifikasi', pushOff: 'Matikan notifikasi', pushActive: 'Notifikasi aktif pada peranti ini.',
+      pushWorking: 'Sebentar…', pushDone: 'Notifikasi dihidupkan. Terima kasih!', pushStopped: 'Notifikasi dimatikan.',
+      pushNotReady: 'Notifikasi belum dibuka oleh pentadbir.',
+      iosFirst: 'Di iPhone/iPad: tekan butang Kongsi (petak dengan anak panah ke atas), pilih "Add to Home Screen", kemudian buka FKM News dari Skrin Utama dan hidupkan notifikasi di sini.',
+      installTitle: 'Pasang app', installBtn: 'Pasang app FKM News', installed: 'App sudah dipasang pada peranti ini.',
+      installHint: 'Buka seperti app biasa dari Skrin Utama, tanpa pelayar.',
+      installManual: 'Dalam menu pelayar (⋮), pilih "Install app" atau "Add to Home screen".'
     },
     en: {
       listen: 'Listen', pause: 'Pause', resume: 'Resume', stop: 'Stop',
@@ -105,7 +124,16 @@ var PubExtras = (function () {
       card: 'Share card', cardTitle: 'Share card 1080×1080', download: 'Download',
       shareImg: 'Share…', cardMaking: 'Preparing card…',
       cardNote: 'Ready for Instagram, Facebook and WhatsApp Status.',
-      archive: 'News archive'
+      archive: 'News archive',
+      pushTitle: 'Notifications & app', pushBtn: 'Notifications & app',
+      pushIntro: 'Get a notification on your phone whenever a new FKM story is published.',
+      pushOn: 'Turn on notifications', pushOff: 'Turn off notifications', pushActive: 'Notifications are on for this device.',
+      pushWorking: 'One moment…', pushDone: 'Notifications are on. Thank you!', pushStopped: 'Notifications turned off.',
+      pushNotReady: 'Notifications have not been enabled by the administrator yet.',
+      iosFirst: 'On iPhone/iPad: tap Share (the square with an up arrow), choose "Add to Home Screen", then open FKM News from your Home Screen and turn on notifications here.',
+      installTitle: 'Install app', installBtn: 'Install FKM News app', installed: 'The app is installed on this device.',
+      installHint: 'Opens like a normal app from your Home Screen, without the browser.',
+      installManual: 'In the browser menu (⋮), choose "Install app" or "Add to Home screen".'
     }
   };
 
@@ -671,11 +699,163 @@ var PubExtras = (function () {
     }
   }
 
+  /* ------------------------------------------ Notifikasi & app (F11) */
+
+  var READER_FLAG = 'FKMNEWS_PUSH_READER';
+  var pushCfg = null;
+  var pushSettingsLoaded = false;
+
+  function publicCall(action, payload) {
+    return new Promise(function (resolve, reject) {
+      if (!window.google || !google.script || !google.script.run) return reject(new Error('Tiada sambungan.'));
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (res && res.ok) resolve(res.data);
+          else reject(new Error((res && res.error && res.error.message) || 'Ralat pelayan.'));
+        })
+        .withFailureHandler(function (e) { reject(e instanceof Error ? e : new Error(String(e))); })
+        .publicApi(action, payload || {});
+    });
+  }
+
+  function readerOn() {
+    return !!(window.FKMPush && FKMPush.store(READER_FLAG) === '1' && FKMPush.permission() === 'granted');
+  }
+
+  function bellIcon() {
+    return '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M6 9.5a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4s2-1.5 2-6.5Z"/><path d="M10 19.5a2.2 2.2 0 0 0 4 0"/></svg>';
+  }
+
+  function renderPushButton() {
+    var F = window.FKMPush;
+    if (!F || !document.querySelector('link[rel="manifest"]')) return;
+    var show = !!pushCfg || F.canInstall() || (F.isIOS && !F.standalone());
+    var btn = document.getElementById('pubPush');
+    if (!show) { if (btn) btn.remove(); return; }
+    if (!btn) {
+      var theme = document.getElementById('pubTheme');
+      if (!theme) return;
+      btn = document.createElement('button');
+      btn.id = 'pubPush';
+      btn.className = 'icon-btn';
+      btn.type = 'button';
+      theme.insertAdjacentElement('beforebegin', btn);
+      btn.addEventListener('click', openPushDialog);
+    }
+    btn.setAttribute('aria-label', t('pushBtn'));
+    btn.title = t('pushBtn');
+    btn.innerHTML = bellIcon() + (readerOn() ? '<span class="push-dot" aria-hidden="true"></span>' : '');
+  }
+
+  function pushSectionHtml() {
+    var F = window.FKMPush;
+    var h = '<div class="push-sec"><h3>🔔 ' + esc(t('pushTitle').split(' & ')[0]) + '</h3>';
+    if (!pushCfg) return h + '<p>' + esc(t('pushNotReady')) + '</p></div>';
+    h += '<p>' + esc(t('pushIntro')) + '</p>';
+    if (F.needsInstallFirst()) return h + '<p>' + esc(t('iosFirst')) + '</p></div>';
+    if (readerOn()) {
+      return h + '<p class="push-ok">✓ ' + esc(t('pushActive')) + '</p>' +
+        '<button type="button" class="rt-btn" data-push="off">' + esc(t('pushOff')) + '</button></div>';
+    }
+    return h + '<button type="button" class="rt-btn" data-push="on" style="background:var(--primary-color);' +
+      'border-color:var(--primary-color);color:#fff">' + esc(t('pushOn')) + '</button></div>';
+  }
+
+  function installSectionHtml() {
+    var F = window.FKMPush;
+    var h = '<div class="push-sec"><h3>📲 ' + esc(t('installTitle')) + '</h3>';
+    if (F.standalone()) return h + '<p class="push-ok">✓ ' + esc(t('installed')) + '</p></div>';
+    h += '<p>' + esc(t('installHint')) + '</p>';
+    if (F.canInstall()) return h + '<button type="button" class="rt-btn" data-push="install">' + esc(t('installBtn')) + '</button></div>';
+    return h + '<p>' + esc(F.isIOS ? t('iosFirst') : t('installManual')) + '</p></div>';
+  }
+
+  function openPushDialog() {
+    var d = dialog('pushDialog', t('pushTitle'),
+      '<div data-push-body>' + pushSectionHtml() + installSectionHtml() + '</div>' +
+      '<div class="qr-actions" style="margin-top:8px"><button type="button" class="rt-btn" data-qr-close>' +
+        esc(t('close')) + '</button></div>');
+    var body = d.querySelector('[data-push-body]');
+    function refresh() {
+      body.innerHTML = pushSectionHtml() + installSectionHtml();
+      renderPushButton();
+    }
+    body.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-push]');
+      if (!b) return;
+      var F = window.FKMPush;
+      var k = b.dataset.push;
+      if (k === 'install') { F.install().then(refresh); return; }
+      b.disabled = true;
+      b.textContent = t('pushWorking');
+      var lang = pageLang();
+      var job = k === 'on'
+        ? F.enable(pushCfg).then(function (tok) {
+            return publicCall('public.pushSubscribe', { token: tok, lang: lang, device: F.deviceLabel() });
+          }).then(function () {
+            F.store(READER_FLAG, '1');
+            F.store('FKMNEWS_PUSH_SYNC', String(Date.now()));
+            note(t('pushDone'));
+          })
+        : F.disable(pushCfg).then(function (tok) {
+            F.store(READER_FLAG, null);
+            return tok ? publicCall('public.pushUnsubscribe', { token: tok }).catch(function () { }) : null;
+          }).then(function () { note(t('pushStopped')); });
+      job.catch(function (err) { note(err.message || String(err), true); }).then(refresh);
+    });
+    function note(msg, bad) {
+      var p = d.querySelector('[data-push-note]');
+      if (!p) {
+        p = document.createElement('p');
+        p.setAttribute('data-push-note', '');
+        p.setAttribute('role', 'status');
+        body.insertAdjacentElement('afterend', p);
+      }
+      p.textContent = msg;
+      p.style.color = bad ? 'var(--danger-color, #B3261E)' : 'var(--success-color, #1E7A4B)';
+    }
+  }
+
+  /** Token FCM boleh bertukar; segerakkan sekali seminggu bagi pelanggan. */
+  function resyncReader() {
+    var F = window.FKMPush;
+    if (!pushCfg || !readerOn()) return;
+    var last = Number(F.store('FKMNEWS_PUSH_SYNC') || 0);
+    if (Date.now() - last < 7 * 86400000) return;
+    F.token(pushCfg).then(function (tok) {
+      if (!tok) return;
+      F.store('FKMNEWS_PUSH_SYNC', String(Date.now()));
+      if (tok) {
+        return publicCall('public.pushSubscribe', { token: tok, lang: pageLang(), device: F.deviceLabel() });
+      }
+    }).catch(function () { });
+  }
+
+  function initPush() {
+    var F = window.FKMPush;
+    if (!F || !document.querySelector('link[rel="manifest"]')) return;
+    F.onInstallChange(renderPushButton);
+    renderPushButton();
+    if (pushSettingsLoaded) return;
+    pushSettingsLoaded = true;
+    publicCall('public.bootstrap', { lang: pageLang() }).then(function (b) {
+      pushCfg = F.configFrom((b && b.settings) || {});
+      renderPushButton();
+      resyncReader();
+    }).catch(function () { });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPush);
+  else setTimeout(initPush, 0);
+
   /* Pautan arkib di kaki portal; dikemas kini apabila bahasa bertukar. */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addArchiveLink);
   else addArchiveLink();
   if (typeof MutationObserver !== 'undefined') {
-    new MutationObserver(addArchiveLink).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+    new MutationObserver(function () { addArchiveLink(); renderPushButton(); })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
   }
 
   /* Suara dimuat secara tak segerak dalam Chrome. */

@@ -36,6 +36,28 @@ FAKE_TTS = '''
 })();
 '''
 
+PUSH = bool(os.environ.get('E2E_PUSH'))
+FAKE_FB = {
+  'firebase-app.js': "export function initializeApp(c, n) { return { c: c, n: n }; }",
+  'firebase-messaging.js': (
+    "export function isSupported() { return Promise.resolve(true); }\n"
+    "export function getMessaging(a) { return { a: a }; }\n"
+    "export function getToken(m, o) { if (!o.vapidKey || !o.serviceWorkerRegistration || !m.a.c.apiKey) "
+    "return Promise.reject(new Error('konfigurasi salah')); return Promise.resolve('e2e:' + 'B'.repeat(150)); }\n"
+    "export function deleteToken() { return Promise.resolve(true); }")
+}
+
+def fake_firebase(ctx):
+    def handle(route):
+        name = route.request.url.rsplit('/', 1)[-1]
+        route.fulfill(status=200, content_type='application/javascript', body=FAKE_FB.get(name, ''),
+                      headers={'Access-Control-Allow-Origin': '*'})
+    ctx.route('https://www.gstatic.com/firebasejs/**', handle)
+    ctx.grant_permissions(['notifications'], origin=BASE.rstrip('/'))
+
+def push_state(page):
+    return page.evaluate("async () => (await (await fetch('/__push')).json())")
+
 with sync_playwright() as p:
     exe = '/opt/pw-browsers/chromium' if os.path.exists('/opt/pw-browsers/chromium') and os.path.isfile('/opt/pw-browsers/chromium') else None
     browser = p.chromium.launch(executable_path=exe) if exe else p.chromium.launch()
@@ -45,6 +67,7 @@ with sync_playwright() as p:
         # Chromium headless tiada enjin suara; ganti speechSynthesis dengan
         # palsu yang merekod teks supaya logik F9 boleh disahkan.
         ctx.add_init_script(FAKE_TTS)
+        if PUSH: fake_firebase(ctx)
         page = ctx.new_page()
         errors = []
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' and not ignorable(m.text) else None)
@@ -112,6 +135,26 @@ with sync_playwright() as p:
         check(page.locator('#cardDialog').count() == 0, 'F10: dialog kad ditutup')
         check(page.locator('.pub-footer [data-archive]').count() == 1, 'F10: pautan Arkib berita di kaki portal')
 
+        # ------------------------------------- F11: notifikasi pembaca
+        if PUSH:
+            page.wait_for_selector('#pubPush', timeout=10000)
+            page.click('#pubPush')
+            page.wait_for_selector('#pushDialog [data-push="on"]', timeout=5000)
+            sw = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+            check(sw <= 1, f'F11: dialog notifikasi tiada skrol mendatar ({sw}px)')
+            page.click('#pushDialog [data-push="on"]')
+            page.wait_for_selector('#pushDialog .push-ok', timeout=10000)
+            page.screenshot(path=f'{SHOTS}/{name}-2e-notifikasi.png', full_page=False)
+            st = push_state(page)
+            check(any(r[2] in (True, 'TRUE') and r[3] == 'bm' for r in st['rows']), 'F11: pembaca dilanggan (BM) di pelayan')
+            page.keyboard.press('Escape')
+            check(page.locator('#pubPush .push-dot').count() == 1, 'F11: tanda notifikasi aktif pada butang 🔔')
+            page.click('#pubPush')
+            page.click('#pushDialog [data-push="off"]')
+            page.wait_for_selector('#pushDialog [data-push="on"]', timeout=10000)
+            check(not any(r[2] in (True, 'TRUE') for r in push_state(page)['rows']), 'F11: pembaca boleh berhenti langgan')
+            page.keyboard.press('Escape')
+
         page.goto(BASE + '?view=reader&id=NEWS-2026-00001&lang=en', wait_until='domcontentloaded')
         page.wait_for_selector('.read-wrap', timeout=15000)
         check('Merdeka Explorace' in page.inner_text('.read-wrap'), 'pautan kongsi ?id=&lang=en membuka artikel dalam BI')
@@ -127,6 +170,7 @@ with sync_playwright() as p:
         # ------------------------------------------------ aplikasi staf (F4)
         print(f'[{name}] aplikasi staf')
         ctx = browser.new_context(viewport=vp, device_scale_factor=2 if name.startswith('telefon') else 1)
+        if PUSH: fake_firebase(ctx)
         page = ctx.new_page()
         errors = []
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' and not ignorable(m.text) else None)
@@ -154,6 +198,24 @@ with sync_playwright() as p:
         check(sw <= 1, f'app: papan pemuka tiada skrol mendatar (lebihan {sw}px)')
         page.wait_for_timeout(600)
         page.screenshot(path=f'{SHOTS}/{name}-5-app-dashboard.png', full_page=False)
+
+        # ------------------------------------------- F11: notifikasi staf
+        if PUSH and name == 'desktop':
+            page.wait_for_selector('.push-hint', timeout=10000)
+            check(True, 'F11: kad cadangan notifikasi pada Papan Pemuka')
+            page.click('.push-hint [data-ph="on"]')
+            page.wait_for_selector('.toast.success', timeout=10000)
+            check(any(r[1] for r in push_state(page)['rows']), 'F11: peranti staf didaftarkan kepada pengguna')
+            page.click('#profileBtn')
+            page.click('[data-push-menu]')
+            page.wait_for_selector('#pushModalBody [data-pm="test"]', timeout=5000)
+            page.screenshot(path=f'{SHOTS}/{name}-5c-notifikasi-staf.png', full_page=False)
+            n0 = len(push_state(page)['sends'])
+            page.click('#pushModalBody [data-pm="test"]')
+            page.wait_for_function("() => [...document.querySelectorAll('.toast')].some(t => /Ujian dihantar ke 1/.test(t.textContent))", timeout=10000)
+            st = push_state(page)
+            check(len(st['sends']) == n0 + 1 and 'Ujian' in st['sends'][-1]['data']['title'], 'F11: push ujian dihantar melalui FCM')
+            page.click('#modalFoot .btn-ghost')
 
         # ------------------------------------------- F10: buletin bulanan
         if name == 'desktop':
@@ -209,6 +271,8 @@ with sync_playwright() as p:
         page.click('[data-logout]')
         page.wait_for_selector('#authEmail', timeout=15000)
         check(page.evaluate("() => !localStorage.getItem('FKMNEWS_TOKEN')"), 'app: log keluar memadam sesi')
+        if PUSH and name == 'desktop':
+            check(not any(r[1] for r in push_state(page)['rows']), 'F11: log keluar menyahdaftar peranti staf')
         check(not errors, 'app: tiada ralat konsol' + ('' if not errors else ': ' + ' | '.join(errors[:3])))
         ctx.close()
     browser.close()

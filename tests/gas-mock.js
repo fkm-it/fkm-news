@@ -327,6 +327,7 @@ function loadGas(opts) {
       base64EncodeWebSafe: b => Buffer.from((typeof b === 'string' ? Buffer.from(b) : (b || []).map(x => x & 255))).toString('base64url'),
       computeDigest: (alg, s) => Array.from(require('crypto').createHash('sha256').update(String(s)).digest()).map(b => (b > 127 ? b - 256 : b)),
       computeHmacSha256Signature: (v, k) => Array.from(require('crypto').createHmac('sha256', String(k)).update(String(v)).digest()).map(b => (b > 127 ? b - 256 : b)),
+      computeRsaSha256Signature: (v, key) => Array.from(require('crypto').createSign('RSA-SHA256').update(String(v)).sign(key)).map(b => (b > 127 ? b - 256 : b)),
       DigestAlgorithm: { SHA_256: 'SHA_256', MD5: 'MD5' },
       Charset: { UTF_8: 'UTF_8' }
     },

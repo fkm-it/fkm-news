@@ -335,6 +335,19 @@ function route_(action, p, user) {
       }
       return AiService.social(user, NewsService.getDetail(user, p.newsId));
 
+    /* ---------- Notifikasi push (F11) ---------- */
+    case 'push.status':
+      return PushService.status(user);
+
+    case 'push.register':
+      return PushService.registerUser(user, p.token, p.device);
+
+    case 'push.unregister':
+      return PushService.unregisterUser(user, p.token);
+
+    case 'push.test':
+      return PushService.test(user);
+
     /* ---------- Buletin bulanan (F10) ---------- */
     case 'bulletin.status':
       requireStaffRole_(user, [ROLES.ADMIN, ROLES.EDITOR], 'Buletin');
@@ -502,7 +515,7 @@ function setThemeMode_(mode) {
  * Operasi tulis dihadkan lebih ketat daripada bacaan.
  */
 function enforceRateLimit_(user, action) {
-  var isWrite = /\.(create|update|delete|save|upload|remove|transition|publish|markRead|markAllRead|setTheme|setActingRole|reorder|setFeatured|toggleSocial|saveCredentials|saveEnglish|draft|review|translate|social|send|pdf)$/.test(action);
+  var isWrite = /\.(create|update|delete|save|upload|remove|transition|publish|markRead|markAllRead|setTheme|setActingRole|reorder|setFeatured|toggleSocial|saveCredentials|saveEnglish|draft|review|translate|social|send|pdf|register|unregister|test)$/.test(action);
 
   var limit = isWrite ? 60 : 300;   // setiap tetingkap
   var windowSeconds = 60;

@@ -263,6 +263,13 @@ var WorkflowService = (function () {
       }
     }
 
+    // F11: push kepada pembaca apabila berita diterbitkan BUAT KALI PERTAMA
+    // (bukan semasa dinyaharkib semula).
+    if (result.newStatus === STATUS.PUBLISHED && result.oldStatus !== STATUS.PUBLISHED &&
+        result.oldStatus !== STATUS.ARCHIVED) {
+      try { PushService.notifyPublished(newsId); } catch (e) { console.error('PUSH_PUBLISH_FAIL', newsId, String(e)); }
+    }
+
     // Portal statik (F5): jana semula bila kandungan awam berubah.
     // StaticSite.sync() tidak pernah melempar ralat.
     if (result.newStatus === STATUS.PUBLISHED || result.newStatus === STATUS.ARCHIVED ||

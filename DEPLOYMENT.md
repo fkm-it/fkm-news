@@ -59,6 +59,22 @@ Repo `fkm-it/fkm-news` → **Settings → Secrets and variables → Actions**
 
 Kuota e-mel Apps Script (akaun Workspace): 1,500 penerima sehari. Setiap alamat BCC dikira satu.
 
+## 1.6 Notifikasi push & app telefon (F11) — pilihan
+
+App sudah boleh dipasang tanpa langkah ini (portal: butang 🔔 → Pasang app; staf: menu profil → Notifikasi telefon & app). Langkah di bawah hanya untuk **notifikasi push**. Firebase Cloud Messaging adalah percuma.
+
+1. Buka https://console.firebase.google.com → **Add project** → nama `fkm-news` → matikan Google Analytics → **Create project**.
+2. Di halaman projek, tekan ikon **Web `</>`** → nama `FKM News` → **Register app** (jangan tanda Hosting). Salin keseluruhan blok `const firebaseConfig = { … }`.
+3. `/app/` → **Tetapan** → **Notification** → tampal ke `FIREBASE_WEB_CONFIG` → Simpan.
+4. Firebase: ⚙️ **Project settings** → tab **Cloud Messaging** → **Web Push certificates** → **Generate key pair**. Salin kunci → tampal ke `FIREBASE_VAPID_KEY`. Pada tab yang sama, pastikan **Firebase Cloud Messaging API (V1)** = *Enabled*.
+5. ⚙️ **Project settings** → tab **Service accounts** → **Generate new private key** → fail JSON dimuat turun. Buka dengan Notepad, salin semua.
+6. Editor Apps Script → ⚙️ **Project Settings** → **Script Properties** → **Add script property**: nama `FKMNEWS_FCM_SERVICE_ACCOUNT`, nilai = kandungan JSON → **Save script properties**. **Padam fail JSON** dari komputer selepas itu. RAHSIA: jangan tampal dalam chat, Tetapan atau repo.
+   - Jika langkah 5 memaparkan "Key creation is disabled", akaun UTM menyekatnya: cipta projek Firebase dengan akaun Gmail peribadi dan ulang langkah 1–6.
+7. Hidupkan `PUSH_ENABLED`. Portal dikemas kini dalam ~10 minit (salinan statik); butang 🔔 untuk pembaca kemudian berfungsi.
+8. Uji: `/app/` → menu profil → **Notifikasi telefon & app** → **Hidupkan notifikasi** → **Hantar ujian**.
+
+Nota iPhone/iPad (iOS 16.4+): notifikasi hanya dalam app yang dipasang dari Safari (Kongsi → Add to Home Screen). Android/desktop: terus dari pelayar atau app.
+
 ## 2. Rollback
 Apps Script → **Deploy → Manage deployments → ✏️ → Version** → pilih versi sebelumnya → Deploy.
 Atau `git revert` commit bermasalah dan push.

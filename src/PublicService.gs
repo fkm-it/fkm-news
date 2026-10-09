@@ -100,7 +100,24 @@ var PublicService = (function () {
       return { counted: true };
     }
 
+    /* F11: langganan notifikasi berita baharu (pembaca tanpa akaun).
+       Had kadar tambahan kerana tindakan ini menulis ke sheet. */
+    if (action === 'public.pushSubscribe' || action === 'public.pushUnsubscribe') {
+      pushRateLimit_();
+      return action === 'public.pushSubscribe'
+        ? PushService.subscribeReader(payload.token, normalizeLang_(payload.lang), payload.device)
+        : PushService.unsubscribeReader(payload.token);
+    }
+
     return handle_(action, payload, true);
+  }
+
+  function pushRateLimit_() {
+    var cache;
+    try { cache = CacheService.getScriptCache(); } catch (e) { return; }
+    var n = parseInt(cache.get('PUB_PUSH_RL') || '0', 10);
+    if (n >= 60) throw Utils.appError('RATE_LIMIT', 'Terlalu banyak permintaan. Cuba sebentar lagi.');
+    try { cache.put('PUB_PUSH_RL', String(n + 1), 60); } catch (e) { }
   }
 
   /**

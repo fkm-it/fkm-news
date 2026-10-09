@@ -14,7 +14,7 @@ const HTML = fs.readFileSync(path.join(__dirname, '..', 'src', 'public-extras.ht
 
 function load() {
   const script = HTML.match(/<script>([\s\S]*?)<\/script>/)[1];
-  const ctx = { window: { addEventListener() {} }, document: { readyState: 'complete', querySelector: () => null, documentElement: { lang: 'ms' } } };
+  const ctx = { setTimeout: () => 0, window: { addEventListener() {} }, document: { readyState: 'complete', querySelector: () => null, documentElement: { lang: 'ms' } } };
   vm.createContext(ctx);
   vm.runInContext(script, ctx);
   return ctx.window.PubExtras;
