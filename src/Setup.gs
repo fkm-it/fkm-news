@@ -11,6 +11,7 @@
  * @param {string} adminEmail e-mel Admin pertama (kosong = guna pemilik skrip)
  */
 function setupSystem(adminEmail) {
+  requireOwnerOrTrigger_('setupSystem', arguments[0]);
   var props = PropertiesService.getScriptProperties();
   var log = [];
 
@@ -112,6 +113,7 @@ function setupSystem(adminEmail) {
 
 /** Tulis semula semua tetapan kepada nilai lalai (berhati-hati — menimpa kustomisasi) */
 function resetSettingsToDefaults() {
+  requireOwnerOrTrigger_('resetSettingsToDefaults', arguments[0]);
   var n = GlobalSettings.seedDefaults(true);
   GlobalSettings.invalidateCache();
   return 'Tetapan ditulis semula: ' + n;
@@ -128,6 +130,7 @@ function resetSettingsToDefaults() {
  * Jalankan tanpa argumen untuk menyegarkan tipografi, tema gelap dan kesan visual.
  */
 function syncSettingsToDefaults(keys) {
+  requireOwnerOrTrigger_('syncSettingsToDefaults', arguments[0]);
   if (!keys || !keys.length) {
     keys = Object.keys(GlobalSettings.SCHEMA).filter(function (k) {
       var group = GlobalSettings.SCHEMA[k].group;
@@ -150,6 +153,7 @@ function syncSettingsToDefaults(keys) {
 
 /** Pasang trigger harian untuk pembersihan log audit */
 function installTriggers() {
+  requireOwnerOrTrigger_('installTriggers', arguments[0]);
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'dailyMaintenance') ScriptApp.deleteTrigger(t);
   });
@@ -158,6 +162,7 @@ function installTriggers() {
 }
 
 function dailyMaintenance() {
+  requireOwnerOrTrigger_('dailyMaintenance', arguments[0]);
   try {
     var purged = AuditService.purgeOldLogs();
     console.log('Log audit dibuang: ' + purged);
@@ -174,6 +179,7 @@ function dailyMaintenance() {
  * luar akan melihat kotak kosong sehingga fungsi ini dijalankan.
  */
 function syncPublishedImageSharing() {
+  requireOwnerOrTrigger_('syncPublishedImageSharing', arguments[0]);
   var published = 0, restricted = 0, files = 0;
   var failures = [];
 
@@ -228,6 +234,7 @@ function syncPublishedImageSharing() {
  * daripada Drive, bukan mengandaikan penetapan tadi berjaya.
  */
 function auditImageSharing() {
+  requireOwnerOrTrigger_('auditImageSharing', arguments[0]);
   var r = ImageService.auditSharing();
 
   var lines = [
@@ -270,6 +277,16 @@ function auditImageSharing() {
  * @param {number} keepCount bilangan sandaran untuk disimpan (lalai 14)
  */
 function createBackup(keepCount) {
+  requireOwnerOrTrigger_('createBackup', arguments[0]);
+  return createBackup_(keepCount);
+}
+
+/**
+ * Pelaksanaan sandaran. Berakhiran _ supaya tidak boleh dipanggil melalui
+ * google.script.run, dan supaya weeklyBackup (konteks trigger) boleh
+ * memanggilnya tanpa melalui guard pemilik sekali lagi.
+ */
+function createBackup_(keepCount) {
   keepCount = keepCount || 14;
 
   var root = DriveApp.getFolderById(CONFIG.getDriveRootId());
@@ -307,6 +324,7 @@ function createBackup(keepCount) {
 
 /** Pasang trigger sandaran mingguan (Ahad, 1 pagi) */
 function installBackupTrigger() {
+  requireOwnerOrTrigger_('installBackupTrigger', arguments[0]);
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'weeklyBackup') ScriptApp.deleteTrigger(t);
   });
@@ -316,8 +334,9 @@ function installBackupTrigger() {
 }
 
 function weeklyBackup() {
+  requireOwnerOrTrigger_('weeklyBackup', arguments[0]);
   try {
-    createBackup(14);
+    createBackup_(14);
   } catch (e) {
     console.error('BACKUP_FAIL', String(e));
     try {
@@ -332,6 +351,7 @@ function weeklyBackup() {
 
 /** Semakan kesihatan sistem — guna sebelum deployment produksi */
 function healthCheck() {
+  requireOwnerOrTrigger_('healthCheck', arguments[0]);
   var issues = [];
   var ok = [];
 

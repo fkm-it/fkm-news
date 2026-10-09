@@ -52,6 +52,7 @@ var BILINGUAL_COLUMNS = {
 
 /** Mod kering — melaporkan sahaja. Ini yang dijalankan dahulu. */
 function migrateBilingual(dryRun) {
+  requireOwnerOrTrigger_('migrateBilingual', arguments[0]);
   var dry = dryRun !== false;
   var lines = [dry ? 'MOD KERING — tiada perubahan ditulis' : 'MOD SEBENAR — menulis perubahan', ''];
 
@@ -108,6 +109,7 @@ function migrateBilingual(dryRun) {
 
 /** Menulis perubahan sebenar. Jalankan selepas menyemak mod kering. */
 function migrateBilingualApply() {
+  requireOwnerOrTrigger_('migrateBilingualApply', arguments[0]);
   return migrateBilingual(false);
 }
 
@@ -136,6 +138,7 @@ var CATEGORY_EN_SEED = {
 };
 
 function seedCategoryEnglish(dryRun) {
+  requireOwnerOrTrigger_('seedCategoryEnglish', arguments[0]);
   var dry = dryRun !== false;
   var lines = [dry ? 'MOD KERING' : 'MOD SEBENAR', ''];
 
@@ -171,6 +174,7 @@ function seedCategoryEnglish(dryRun) {
 }
 
 function seedCategoryEnglishApply() {
+  requireOwnerOrTrigger_('seedCategoryEnglishApply', arguments[0]);
   return seedCategoryEnglish(false);
 }
 
@@ -179,6 +183,7 @@ function seedCategoryEnglishApply() {
  * keadaan terjemahan semasa.
  */
 function verifyBilingual() {
+  requireOwnerOrTrigger_('verifyBilingual', arguments[0]);
   var lines = [];
 
   Object.keys(BILINGUAL_COLUMNS).forEach(function (key) {
@@ -217,6 +222,7 @@ function verifyBilingual() {
  * menunjukkan apa yang sebenarnya perlu diterjemah.
  */
 function listMissingEnglish() {
+  requireOwnerOrTrigger_('listMissingEnglish', arguments[0]);
   var rows = SheetDB.findAll(CONFIG.SHEETS.NEWS).filter(function (r) {
     return r.Status === STATUS.PUBLISHED || r.Status === STATUS.APPROVED;
   });

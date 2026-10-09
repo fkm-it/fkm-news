@@ -79,33 +79,201 @@ var Security = (function () {
   }
 
   /**
-   * Rich text: whitelist tag yang selamat, buang event handler, javascript:,
-   * <script>, <style>, <iframe> dan atribut berbahaya.
+   * Rich text: pembersih berasaskan token (bukan regex ganti).
+   *
+   * Setiap tag dihurai, kemudian DIBINA SEMULA daripada senarai tag dan
+   * atribut yang dibenarkan. Nilai atribut sentiasa dipetik dan di-escape,
+   * jadi tiada cara untuk "keluar" daripada atribut. URL dinyahkod dahulu
+   * (entiti HTML, ruang, aksara kawalan) sebelum skema diperiksa, supaya
+   * helah seperti jav&#x61;script: atau java<tab>script: tidak lepas.
+   *
+   * Teks di luar tag dikekalkan, kecuali < dan > yang terbiar ditukar
+   * kepada entiti. Blok berbahaya (script, style, svg, iframe...) dibuang
+   * bersama kandungannya.
+   *
+   * Fungsi ini dipanggil semasa SIMPAN dan semasa BACA (paparan), supaya
+   * kandungan lama yang disimpan sebelum pembetulan ini juga selamat.
    */
   var ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li',
     'h2', 'h3', 'h4', 'blockquote', 'a', 'span', 'div', 'figure', 'figcaption', 'img'];
 
-  function sanitizeHtml(html) {
-    var s = String(html || '');
+  var VOID_TAGS = ['br', 'img'];
 
-    // Buang blok berbahaya sepenuhnya
-    s = s.replace(/<\s*(script|style|iframe|object|embed|form|input|link|meta)[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
-    s = s.replace(/<\s*(script|style|iframe|object|embed|form|input|link|meta)[^>]*\/?>/gi, '');
+  /** Blok yang dibuang bersama SEMUA kandungannya */
+  var DROP_BLOCKS = ['script', 'style', 'iframe', 'object', 'embed', 'svg', 'math',
+    'template', 'noscript', 'textarea', 'select', 'title', 'xmp', 'noembed',
+    'noframes', 'frameset', 'applet', 'form', 'button', 'head'];
 
-    // Buang atribut event dan protokol berbahaya
-    s = s.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-    s = s.replace(/(href|src)\s*=\s*("|')\s*(javascript|vbscript|data):[^"']*\2/gi, '$1="#"');
-    s = s.replace(/\sstyle\s*=\s*("[^"]*"|'[^']*')/gi, '');
+  /** Atribut dibenarkan mengikut tag ('*' = semua tag yang dibenarkan) */
+  var ALLOWED_ATTRS = {
+    '*': ['class', 'title', 'dir', 'lang'],
+    a: ['href', 'target'],
+    img: ['src', 'alt', 'width', 'height']
+  };
 
-    // Buang tag yang tiada dalam whitelist
-    s = s.replace(/<\s*\/?\s*([a-zA-Z0-9]+)([^>]*)>/g, function (match, tag, attrs) {
-      if (ALLOWED_TAGS.indexOf(String(tag).toLowerCase()) === -1) return '';
-      return match;
+  var NAMED_ENTITIES = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+    colon: ':', tab: '\t', newline: '\n', sol: '/', lpar: '(', rpar: ')', semi: ';',
+    period: '.', comma: ',', excl: '!', num: '#', equals: '='
+  };
+
+  function decodeEntities_(s) {
+    return String(s).replace(/&(#[xX][0-9a-fA-F]+|#[0-9]+|[a-zA-Z]+);?/g, function (m, ent) {
+      if (ent.charAt(0) === '#') {
+        var code = (ent.charAt(1) === 'x' || ent.charAt(1) === 'X')
+          ? parseInt(ent.substring(2), 16) : parseInt(ent.substring(1), 10);
+        if (!isFinite(code) || code < 0 || code > 0x10FFFF) return '';
+        try { return String.fromCodePoint(code); } catch (e) { return ''; }
+      }
+      var named = NAMED_ENTITIES[ent.toLowerCase()];
+      return named !== undefined ? named : m;
+    });
+  }
+
+  function escapeAttr_(s) {
+    return String(s).replace(/[&<>"']/g, function (c) { return HTML_ESCAPE[c]; });
+  }
+
+  /** Escape teks biasa: kekalkan entiti sedia ada, escape < > dan & yang terbiar */
+  function escapeText_(s) {
+    return String(s)
+      .replace(/&(?!(#[xX][0-9a-fA-F]+|#[0-9]+|[a-zA-Z][a-zA-Z0-9]*);)/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  /**
+   * Sahkan URL. Mengembalikan URL asal (dinyahkod) jika selamat, atau ''.
+   * @param {string} raw nilai atribut mentah
+   * @param {boolean} imageOnly true untuk src gambar (http/https sahaja)
+   */
+  function safeUrl_(raw, imageOnly) {
+    var url = decodeEntities_(raw).trim();
+    if (!url) return '';
+    // Pelayar mengabaikan ruang dan aksara kawalan dalam skema; kita juga.
+    var probe = url.replace(/[\u0000- \u007f-\u009f]/g, '').toLowerCase();
+    var scheme = probe.match(/^([a-z][a-z0-9+.\-]*):/);
+    if (scheme) {
+      var allowed = imageOnly ? ['http', 'https'] : ['http', 'https', 'mailto', 'tel'];
+      return allowed.indexOf(scheme[1]) !== -1 ? url : '';
+    }
+    if (imageOnly) return '';
+    // Pautan relatif: tolak apa-apa yang masih mengandungi ':' sebelum / ? #
+    var head = probe.split(/[\/?#]/)[0];
+    if (head.indexOf(':') !== -1) return '';
+    return url;
+  }
+
+  /** Hurai rentetan atribut kepada senarai {name, value} */
+  function parseAttrs_(str) {
+    var out = [];
+    var re = /([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
+    var m;
+    while ((m = re.exec(str)) !== null) {
+      var value = m[2] !== undefined ? m[2] : (m[3] !== undefined ? m[3] : (m[4] !== undefined ? m[4] : ''));
+      out.push({ name: m[1].toLowerCase(), value: value });
+    }
+    return out;
+  }
+
+  function buildTag_(tag, attrStr) {
+    var allowed = (ALLOWED_ATTRS['*']).concat(ALLOWED_ATTRS[tag] || []);
+    var seen = {};
+    var parts = [];
+    var isBlank = false;
+
+    parseAttrs_(attrStr).forEach(function (a) {
+      if (allowed.indexOf(a.name) === -1 || seen[a.name]) return;
+      var v = a.value;
+
+      if (a.name === 'href') {
+        v = safeUrl_(v, false);
+        if (!v) return;
+      } else if (a.name === 'src') {
+        v = safeUrl_(v, true);
+        if (!v) return;
+      } else if (a.name === 'target') {
+        if (decodeEntities_(v).trim().toLowerCase() !== '_blank') return;
+        v = '_blank';
+        isBlank = true;
+      } else if (a.name === 'width' || a.name === 'height') {
+        if (!/^\d{1,4}$/.test(String(v).trim())) return;
+        v = String(v).trim();
+      } else if (a.name === 'class') {
+        v = decodeEntities_(v).replace(/[^\w\- ]/g, '').trim();
+        if (!v) return;
+      } else if (a.name === 'dir') {
+        v = decodeEntities_(v).trim().toLowerCase();
+        if (['ltr', 'rtl', 'auto'].indexOf(v) === -1) return;
+      } else {
+        v = decodeEntities_(v);
+      }
+
+      seen[a.name] = true;
+      parts.push(a.name + '="' + escapeAttr_(v) + '"');
     });
 
-    var max = GlobalSettings.get('MAX_CONTENT_LENGTH');
-    if (s.length > max) s = s.substring(0, max);
-    return s.trim();
+    if (tag === 'a' && isBlank) parts.push('rel="noopener noreferrer"');
+    if (tag === 'img' && !seen.src) return '';
+    return '<' + tag + (parts.length ? ' ' + parts.join(' ') : '') + '>';
+  }
+
+  function sanitizeHtml(html) {
+    var s = String(html === null || html === undefined ? '' : html);
+
+    var max = 0;
+    try { max = Number(GlobalSettings.get('MAX_CONTENT_LENGTH')) || 0; } catch (e) { max = 0; }
+    if (max && s.length > max) s = s.substring(0, max);
+
+    // 1. Aksara kawalan dan ulasan HTML (termasuk ulasan tidak bertutup)
+    s = s.replace(/[\u0000\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+    s = s.replace(/<!--[\s\S]*?(-->|$)/g, '');
+    s = s.replace(/<!\[CDATA\[[\s\S]*?(\]\]>|$)/gi, '');
+    s = s.replace(/<![^>]*>/g, '');
+    s = s.replace(/<\?[^>]*>/g, '');
+
+    // 2. Blok berbahaya bersama kandungan; ulang sehingga stabil
+    var dropOpen = new RegExp('<\\s*(' + DROP_BLOCKS.join('|') + ')\\b[\\s\\S]*?<\\s*\\/\\s*\\1\\s*>', 'gi');
+    var dropTail = new RegExp('<\\s*(' + DROP_BLOCKS.join('|') + ')\\b[\\s\\S]*$', 'gi');
+    var prev;
+    do {
+      prev = s;
+      s = s.replace(dropOpen, '').replace(dropTail, '');
+    } while (s !== prev);
+
+    // 3. Token: tag yang sah dibina semula; selainnya dianggap teks
+    var out = [];
+    // Tag dihadkan kepada 2048 aksara supaya input bertubi-tubi '<' tidak
+    // menyebabkan masa pemprosesan kuadratik.
+    var tagRe = /^<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/;
+    var i = 0;
+    var textStart = 0;
+
+    while (i < s.length) {
+      var lt = s.indexOf('<', i);
+      if (lt === -1) break;
+
+      var m = tagRe.exec(s.substr(lt, 2048));
+      if (!m) { i = lt + 1; continue; }
+
+      out.push(escapeText_(s.substring(textStart, lt)));
+
+      var closing = m[1] === '/';
+      var tag = m[2].toLowerCase();
+      if (ALLOWED_TAGS.indexOf(tag) !== -1) {
+        if (closing) {
+          if (VOID_TAGS.indexOf(tag) === -1) out.push('</' + tag + '>');
+        } else {
+          out.push(buildTag_(tag, m[3]));
+        }
+      }
+
+      i = lt + m[0].length;
+      textStart = i;
+    }
+    out.push(escapeText_(s.substring(textStart)));
+
+    return out.join('').trim();
   }
 
   /** Bersihkan nama fail sebelum simpan ke Drive */

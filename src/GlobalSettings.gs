@@ -454,7 +454,7 @@ var GlobalSettings = (function () {
 })();
 
 /* Alias global mengikut spec dokumen */
-function getGlobalSettings()  { return GlobalSettings.getGlobalSettings(); }
-function getPublicSettings()  { return GlobalSettings.getPublicSettings(); }
-function updateGlobalSetting(k, v) { return GlobalSettings.updateGlobalSetting(k, v); }
-function validateGlobalSetting(k, v) { return GlobalSettings.validateGlobalSetting(k, v); }
+function getGlobalSettings() { requireOwnerOrTrigger_('getGlobalSettings', arguments[0]); return GlobalSettings.getGlobalSettings(); }
+function getPublicSettings() { requireOwnerOrTrigger_('getPublicSettings', arguments[0]); return GlobalSettings.getPublicSettings(); }
+function updateGlobalSetting(k, v) { requireOwnerOrTrigger_('updateGlobalSetting', arguments[0]); return GlobalSettings.updateGlobalSetting(k, v); }
+function validateGlobalSetting(k, v) { requireOwnerOrTrigger_('validateGlobalSetting', arguments[0]); return GlobalSettings.validateGlobalSetting(k, v); }

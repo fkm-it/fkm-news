@@ -1,0 +1,55 @@
+# Deploy: setiap push ke main →
+#   1. CI penuh (ci.yml)
+#   2. clasp push src/ + kemas kini deployment SEDIA ADA (URL /exec kekal sama)
+#
+# Persediaan SEKALI (lihat DEPLOYMENT.md):
+#   Secret   CLASPRC_JSON   ~/.clasprc.json selepas `npx @google/clasp@3 login`
+#                           MESTI akaun pemilik skrip: mohdzaki@mail.fkm.utm.my
+#   Variable SCRIPT_ID      1y545hp-MSu0PFU9u1S1UIXyusHPwdDFF7od3Pd-d1g1ikv7e5YOWjsc9
+#   Variable DEPLOYMENT_ID  ID deployment Web App sedia ada (AKfy…)
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  gas:
+    name: Apps Script (clasp)
+    needs: ci
+    if: ${{ vars.SCRIPT_ID != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Kelayakan clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then echo "::error::Secret CLASPRC_JSON belum ditetapkan (lihat DEPLOYMENT.md)"; exit 1; fi
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          printf '{"scriptId":"%s","rootDir":"src"}\n' "${{ vars.SCRIPT_ID }}" > .clasp.json
+          npm install --no-save --no-audit --no-fund @google/clasp@3
+      - name: clasp push
+        run: npx clasp push --force
+      - name: Kemas kini deployment (URL kekal sama)
+        if: ${{ vars.DEPLOYMENT_ID != '' }}
+        run: npx clasp update-deployment "${{ vars.DEPLOYMENT_ID }}" --description "v$(cat VERSION) ${GITHUB_SHA::7}"
+      - name: Buang kelayakan
+        if: always()
+        run: rm -f "$HOME/.clasprc.json" .clasp.json

@@ -249,7 +249,7 @@ var PortalService = (function () {
 
     var loc = LanguageService.getLocalizedNews(n, lang);
     dto.summary = String(loc.Summary || '');
-    dto.content = String(loc.Content || '');
+    dto.content = Security.sanitizeHtml(loc.Content);
     dto.fallbackFields = loc._fallback;
     dto.hasFallback = loc._hasFallback;
 

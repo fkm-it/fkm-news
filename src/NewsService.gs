@@ -145,7 +145,9 @@ var NewsService = (function () {
     var cats = categoryMap();
     var base = toListDto(n, users, cats);
 
-    base.content = String(n.Content || '');
+    // Dibersihkan semula semasa dibaca: kandungan lama mungkin disimpan
+    // sebelum pembersih berasaskan token diperkenalkan (F1, Okt 2026).
+    base.content = Security.sanitizeHtml(n.Content);
     base.summary = String(n.Summary || '');
     base.tags = String(n.Tags || '');
     base.rejectReason = String(n.RejectReason || '');
@@ -169,7 +171,7 @@ var NewsService = (function () {
      */
     base.titleEn = String(n.TitleEn || '');
     base.summaryEn = String(n.SummaryEn || '');
-    base.contentEn = String(n.ContentEn || '');
+    base.contentEn = Security.sanitizeHtml(n.ContentEn);
     base.seoTitle = String(n.SeoTitle || '');
     base.seoTitleEn = String(n.SeoTitleEn || '');
     base.seoDescription = String(n.SeoDescription || '');
@@ -230,7 +232,7 @@ var NewsService = (function () {
         versionNumber: Number(v.VersionNumber),
         title: String(v.Title),
         summary: String(v.Summary || ''),
-        content: String(v.Content || ''),
+        content: Security.sanitizeHtml(v.Content),
         featuredImageUrl: String(v.FeaturedImageURL || ''),
         submittedBy: (users[String(v.SubmittedBy)] || {}).name || '—',
         submissionDate: Utils.formatDateTime(v.SubmissionDate),

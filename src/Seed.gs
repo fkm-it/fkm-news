@@ -21,6 +21,7 @@ var DEMO_TAG = 'DEMO';
  * @param {Object} options { includeUsers: boolean }
  */
 function seedDemoData(options) {
+  requireOwnerOrTrigger_('seedDemoData', arguments[0]);
   options = options || {};
 
   if (!CONFIG.isInstalled()) {
@@ -328,6 +329,7 @@ function seedDemoData(options) {
  * membuang versi, semakan serta log berkaitan.
  */
 function removeDemoData() {
+  requireOwnerOrTrigger_('removeDemoData', arguments[0]);
   var removed = { news: 0, versions: 0, reviews: 0, notifications: 0, users: 0, audit: 0, images: 0 };
 
   var demoNews = SheetDB.findWhere(CONFIG.SHEETS.NEWS, function (n) {
@@ -402,6 +404,7 @@ function removeDemoData() {
  * @param {number} perNews bilangan gambar setiap berita (lalai 2)
  */
 function seedDemoImages(perNews) {
+  requireOwnerOrTrigger_('seedDemoImages', arguments[0]);
   perNews = perNews || 2;
 
   var demoNews = SheetDB.findWhere(CONFIG.SHEETS.NEWS, function (n) {
@@ -515,6 +518,7 @@ function seedDemoImages(perNews) {
  * @param {boolean} withImages muat naik gambar sekali (memerlukan rangkaian)
  */
 function seedMyTestArticles(withImages) {
+  requireOwnerOrTrigger_('seedMyTestArticles', arguments[0]);
   var email = Session.getEffectiveUser().getEmail().toLowerCase();
   var me = SheetDB.findOneBy(CONFIG.SHEETS.USERS, 'Email', email);
   if (!me) throw new Error('Akaun anda (' + email + ') tiada dalam sheet USERS.');

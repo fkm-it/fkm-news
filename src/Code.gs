@@ -206,7 +206,7 @@ function route_(action, p, user) {
       return NewsService.remove(user, p.newsId);
 
     case 'news.versions':
-      NewsService.getRaw(p.newsId);
+      Security.requireViewNews(user, NewsService.getRaw(p.newsId));
       return NewsService.getVersions(p.newsId);
 
     /* ---------- Workflow ---------- */
@@ -223,7 +223,7 @@ function route_(action, p, user) {
 
     /* ---------- Gambar ---------- */
     case 'image.list':
-      NewsService.getRaw(p.newsId);
+      Security.requireViewNews(user, NewsService.getRaw(p.newsId));
       return ImageService.listForNews(p.newsId);
 
     case 'image.upload':
@@ -253,7 +253,7 @@ function route_(action, p, user) {
 
     /* ---------- Lampiran ---------- */
     case 'attachment.list':
-      NewsService.getRaw(p.newsId);
+      Security.requireViewNews(user, NewsService.getRaw(p.newsId));
       return DriveService.listFiles(p.newsId, 'attachment');
 
     case 'attachment.upload':
@@ -281,7 +281,7 @@ function route_(action, p, user) {
       return SocialService.publish(user, p.newsId, p.platforms, p.options || {});
 
     case 'social.history':
-      NewsService.getRaw(p.newsId);
+      Security.requireViewNews(user, NewsService.getRaw(p.newsId));
       return SocialService.historyForNews(p.newsId);
 
     case 'social.configStatus':

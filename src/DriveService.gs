@@ -35,11 +35,12 @@ var DriveService = (function () {
    * @param {string} kind 'image' | 'attachment'
    */
   function uploadFile(newsId, file, kind, actorUserId) {
-    Validation.validateUpload(file, kind === 'image' ? 'image' : 'attachment');
+    var checked = Validation.validateUpload(file, kind === 'image' ? 'image' : 'attachment');
 
     var cleanName = Security.sanitizeFilename(file.name);
-    var bytes = Utilities.base64Decode(file.data);
-    var blob = Utilities.newBlob(bytes, file.mimeType || 'application/octet-stream', cleanName);
+    var bytes = Utilities.base64Decode(String(file.data).replace(/^data:[^,]*,/, ''));
+    // Jenis MIME daripada kandungan sebenar, bukan daripada pelayar
+    var blob = Utilities.newBlob(bytes, checked.mimeType, cleanName);
 
     var folder = getSubFolder(newsId, kind);
     var created = folder.createFile(blob);

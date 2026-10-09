@@ -77,6 +77,7 @@ var RECOVERY_BILINGUAL_ = {
  * Nota berasingan: jalankan generateConfigNotes().
  */
 function generateConfig() {
+  requireOwnerOrTrigger_('generateConfig', arguments[0]);
   var ss = openSpreadsheet_();
   var live = readLiveSheets_(ss);
   var props = readPropertyKeys_();
@@ -115,6 +116,7 @@ function generateConfig() {
  * yang sama dengan kod.
  */
 function generateConfigNotes() {
+  requireOwnerOrTrigger_('generateConfigNotes', arguments[0]);
   var ss = openSpreadsheet_();
   var live = readLiveSheets_(ss);
   var props = readPropertyKeys_();

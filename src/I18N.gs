@@ -273,6 +273,7 @@ function getDictionary(lang) {
  * Run > lintI18n, kemudian baca execution log.
  */
 function lintI18n() {
+  requireOwnerOrTrigger_('lintI18n', arguments[0]);
   var bm = Object.keys(I18N.bm);
   var en = Object.keys(I18N.en);
 

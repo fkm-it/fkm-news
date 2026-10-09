@@ -17,6 +17,7 @@
  */
 
 function runSecurityTests() {
+  requireOwnerOrTrigger_('runSecurityTests', arguments[0]);
   var results = [];
 
   function check(name, condition, detail) {

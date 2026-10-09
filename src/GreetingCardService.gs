@@ -340,11 +340,12 @@ var GreetingCardService = (function () {
    * tiada peringkat draf yang perlu dilindungi.
    */
   function uploadPoster_(file, user) {
-    Validation.validateUpload(file, 'image');
+    var checked = Validation.validateUpload(file, 'image');
 
     var name = Security.sanitizeFilename(file.name);
-    var blob = Utilities.newBlob(Utilities.base64Decode(file.data),
-      file.mimeType || 'application/octet-stream', name);
+    var blob = Utilities.newBlob(
+      Utilities.base64Decode(String(file.data).replace(/^data:[^,]*,/, '')),
+      checked.mimeType, name);
 
     var created = posterFolder_().createFile(blob);
     var warning = '';

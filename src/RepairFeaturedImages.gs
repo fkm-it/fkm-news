@@ -21,6 +21,7 @@
  */
 
 function repairFeaturedImages(dryRun) {
+  requireOwnerOrTrigger_('repairFeaturedImages', arguments[0]);
   var dry = dryRun !== false;
   var lines = [dry ? 'MOD KERING — tiada perubahan ditulis'
                    : 'MOD SEBENAR — menulis perubahan', ''];
@@ -98,5 +99,6 @@ function repairFeaturedImages(dryRun) {
 }
 
 function repairFeaturedImagesApply() {
+  requireOwnerOrTrigger_('repairFeaturedImagesApply', arguments[0]);
   return repairFeaturedImages(false);
 }

@@ -24,6 +24,7 @@
  * URL into setAppUrl() below.
  */
 function printAppUrl() {
+  requireOwnerOrTrigger_('printAppUrl', arguments[0]);
   var url = ScriptApp.getService().getUrl();
   Logger.log('Deployment URL: ' + url);
   return url;
@@ -57,6 +58,7 @@ var PRODUCTION_URL = 'PASTE_PRODUCTION_URL_HERE';
  * Idempoten — selamat dijalankan berulang kali.
  */
 function setAppUrl(url) {
+  requireOwnerOrTrigger_('setAppUrl', arguments[0]);
   url = normaliseUrl_(url || PRODUCTION_URL);
 
   if (url.indexOf('PASTE_') === 0 || !url) {
@@ -120,6 +122,7 @@ function writeSetting_(key, value, description) {
  * "deployment mana yang hidup?" tanpa membuka Manage deployments.
  */
 function showAppUrl() {
+  requireOwnerOrTrigger_('showAppUrl', arguments[0]);
   var lines = [];
   var portal = '';
   ['APP_URL', 'PUBLIC_PORTAL_URL', 'PUBLIC_SITE_URL'].forEach(function (k) {
@@ -171,6 +174,7 @@ function getAppUrl_() {
  * menyemak skema dan peranan, yang ini menyemak pendawaian deployment.
  */
 function deployHealthCheck() {
+  requireOwnerOrTrigger_('deployHealthCheck', arguments[0]);
   var results = [];
 
   function check(label, fn) {
@@ -219,7 +223,7 @@ function deployHealthCheck() {
   });
 
   check('Sidebar data', function () {
-    var data = getSidebarData();
+    var data = getSidebarData_();
     return 'trend=' + data.trend.length +
            ' card=' + (data.greetingCard ? 'active' : 'none') +
            ' links=' + data.quickLinks.length;

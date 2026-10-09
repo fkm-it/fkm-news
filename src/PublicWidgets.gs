@@ -18,7 +18,7 @@ function publicSidebar(lang) {
     if (!PublicService.isEnabled()) {
       return { ok: false, error: { code: 'DISABLED', message: 'Portal awam tidak diaktifkan.' } };
     }
-    return { ok: true, data: getSidebarData(lang) };
+    return { ok: true, data: getSidebarData_(lang) };
   } catch (err) {
     // Jangan bocorkan stack trace kepada pelawat awam.
     return { ok: false, error: { code: 'SIDEBAR', message: 'Tidak dapat memuatkan panel sisi.' } };

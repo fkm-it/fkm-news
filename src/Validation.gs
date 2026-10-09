@@ -101,7 +101,74 @@ var Validation = (function () {
     }
 
     if (errors.length) fail(errors);
-    return true;
+
+    /*
+     * Semak KANDUNGAN fail, bukan hanya sambungan nama.
+     *
+     * Sambungan dan jenis MIME datang daripada pelayar dan boleh dipalsukan.
+     * Beberapa bait pertama fail (magic bytes) menentukan jenis sebenar.
+     * Jenis MIME yang disimpan di Drive diambil daripada pengesanan ini.
+     */
+    var ext2 = extensionOf(file.name);
+    var detected = sniffType_(file.data);
+    var expected = EXT_SIGNATURE_[ext2];
+
+    if (ext2 === 'svg' || detected.kind === 'markup') {
+      fail(['Fail jenis SVG/HTML tidak dibenarkan.']);
+    }
+    if (expected) {
+      if (detected.kind !== expected) {
+        fail(['Kandungan fail tidak sepadan dengan sambungan .' + ext2 +
+          '. Sila muat naik fail ' + ext2.toUpperCase() + ' yang sebenar.']);
+      }
+    } else if (kind === 'image') {
+      fail(['Jenis gambar .' + ext2 + ' tidak dapat disahkan.']);
+    }
+
+    return { ext: ext2, mimeType: (expected && MIME_BY_EXT_[ext2]) || 'application/octet-stream' };
+  }
+
+  /** Jenis kandungan yang dijangka bagi setiap sambungan yang diketahui */
+  var EXT_SIGNATURE_ = {
+    jpg: 'jpeg', jpeg: 'jpeg', png: 'png', gif: 'gif', webp: 'webp', pdf: 'pdf',
+    docx: 'zip', xlsx: 'zip', pptx: 'zip'
+  };
+
+  var MIME_BY_EXT_ = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp', pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  };
+
+  /** Kenal pasti jenis fail daripada 24 bait pertama data base64 */
+  function sniffType_(base64) {
+    var head = String(base64 || '').replace(/^data:[^,]*,/, '').replace(/\s/g, '').substring(0, 32);
+    var b = [];
+    try {
+      b = Utilities.base64Decode(head).map(function (x) { return x & 255; });
+    } catch (e) { return { kind: 'unknown' }; }
+
+    function at(i, arr) {
+      for (var k = 0; k < arr.length; k++) if (b[i + k] !== arr[k]) return false;
+      return true;
+    }
+
+    if (at(0, [0xFF, 0xD8, 0xFF])) return { kind: 'jpeg' };
+    if (at(0, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) return { kind: 'png' };
+    if (at(0, [0x47, 0x49, 0x46, 0x38])) return { kind: 'gif' };
+    if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) return { kind: 'webp' };
+    if (at(0, [0x25, 0x50, 0x44, 0x46])) return { kind: 'pdf' };
+    if (at(0, [0x50, 0x4B, 0x03, 0x04])) return { kind: 'zip' };
+
+    // Teks bermula dengan '<' (selepas BOM/ruang) = HTML/SVG/XML
+    var i = 0;
+    if (at(0, [0xEF, 0xBB, 0xBF])) i = 3;
+    while (i < b.length && (b[i] === 0x20 || b[i] === 0x09 || b[i] === 0x0A || b[i] === 0x0D)) i++;
+    if (b[i] === 0x3C) return { kind: 'markup' };
+
+    return { kind: 'unknown' };
   }
 
   /** Validasi pengguna */

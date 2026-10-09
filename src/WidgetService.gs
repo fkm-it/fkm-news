@@ -7,7 +7,7 @@
  *   3. Pautan Pantas      -> getQuickLinks_()
  *
  * Entry point called from the frontend via google.script.run:
- *   getSidebarData()
+ *   getSidebarData_()  (melalui publicSidebar)
  *
  * Uses SheetDB.gs (the project's existing data-access repository layer)
  * and the STATUS enum from Constants.gs — consistent with every other
@@ -22,7 +22,7 @@
  */
 
 /** Single call the frontend uses to populate all 3 widgets at once. */
-function getSidebarData(lang) {
+function getSidebarData_(lang) {
   return {
     trend: getMonthlyTrend_(6),
     greetingCard: getActiveGreetingCard_(lang),
@@ -192,6 +192,7 @@ var DEFAULT_QUICK_LINKS_ = [
  * Run manually once from the Apps Script editor (Run > seedQuickLinksSetting).
  */
 function seedQuickLinksSetting() {
+  requireOwnerOrTrigger_('seedQuickLinksSetting', arguments[0]);
   var existing = SheetDB.findOneBy(CONFIG.SHEETS.SYSTEM_SETTINGS, 'SettingKey', 'QUICK_LINKS');
   if (existing) {
     SheetDB.updateBy(CONFIG.SHEETS.SYSTEM_SETTINGS, 'SettingKey', 'QUICK_LINKS', {
