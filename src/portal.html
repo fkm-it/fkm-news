@@ -1,0 +1,360 @@
+<script>
+/* portal.html — laman utama pembaca.
+   Memaparkan berita berstatus PUBLISHED sahaja. Tiada draf, tiada komen
+   semakan dan tiada nama penyemak — semua itu maklumat dalaman. */
+
+App.views['portal'] = {
+
+  data: null,
+  heroIndex: 0,
+  heroTimer: null,
+
+  title: function () {
+    return App.state.settings.LABEL_PORTAL || 'Laman Berita';
+  },
+
+  render: function (container) {
+    var self = this;
+    self.stopCarousel();
+
+    return App.call('portal.home', {
+      options: {
+        heroCount: App.state.settings.PORTAL_HERO_COUNT,
+        pageSize: App.state.settings.PORTAL_PAGE_SIZE
+      }
+    }).then(function (data) {
+      self.data = data;
+      self.heroIndex = 0;
+
+      if (!data.hero.length && !data.latest.length) {
+        container.innerHTML = '<div class="card">' + App.emptyState(
+          'Belum ada berita diterbitkan',
+          'Berita yang diluluskan Editor akan dipaparkan di sini untuk dibaca.') + '</div>';
+        return;
+      }
+
+      container.innerHTML =
+        '<div class="portal-grid">' +
+          '<div class="portal-main">' +
+            self.heroSection(data) +
+            self.statSection(data) +
+            self.latestSection(data) +
+            self.ctaSection(data) +
+          '</div>' +
+          '<aside class="portal-side">' +
+            self.briefSection(data) +
+            self.calendarSection(data) +
+            self.categorySection(data) +
+          '</aside>' +
+        '</div>';
+
+      self.bind(container);
+    });
+  },
+
+  /* ------------------------------------------------------------ Karusel */
+
+  heroSection: function (data) {
+    var self = this;
+    if (!data.hero.length) return '';
+
+    var slides = data.hero.map(function (a, i) {
+      var bg = a.imageUrl
+        ? 'background-image:linear-gradient(90deg,rgba(8,15,26,.94) 0%,rgba(8,15,26,.78) 46%,rgba(8,15,26,.34) 100%),url(' +
+          App.esc(a.imageUrl) + ')'
+        : '';
+      return '<article class="hero-slide' + (i === 0 ? ' active' : '') +
+        '" data-slide="' + i + '" style="' + bg + '">' +
+        '<div class="hero-slide-body">' +
+          '<span class="hero-tag">Berita Utama</span>' +
+          '<h2 class="hero-headline">' + App.esc(a.title) + '</h2>' +
+          '<p class="hero-excerpt">' + App.esc(a.summary) + '</p>' +
+          '<div class="meta-row">' +
+            self.metaItem('calendar', a.publishedAt) +
+            self.metaItem('eye', a.views + ' tontonan') +
+            self.metaItem('clock', a.readMinutes + ' minit baca') +
+          '</div>' +
+          '<button class="btn btn-accent" data-read="' + App.esc(a.newsId) + '">' +
+            'Baca selengkapnya' +
+            '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">' +
+            '<path d="M5 12h13M12 5.5 18.5 12 12 18.5" stroke="currentColor" ' +
+            'stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          '</button>' +
+        '</div></article>';
+    }).join('');
+
+    var dots = data.hero.map(function (a, i) {
+      return '<button class="hero-dot' + (i === 0 ? ' active' : '') +
+        '" data-dot="' + i + '" aria-label="Berita ' + (i + 1) + '"></button>';
+    }).join('');
+
+    var nav = data.hero.length > 1
+      ? '<div class="hero-nav">' +
+          '<button class="hero-arrow" data-hero="prev" aria-label="Berita sebelum">' +
+          '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+          '<path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" ' +
+          'fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
+          '<button class="hero-arrow" data-hero="next" aria-label="Berita seterusnya">' +
+          '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">' +
+          '<path d="M9.5 5.5 16 12l-6.5 6.5" stroke="currentColor" stroke-width="2" ' +
+          'fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
+        '</div>'
+      : '';
+
+    return '<section class="hero-carousel" aria-roledescription="karusel">' +
+      slides + nav +
+      (data.hero.length > 1 ? '<div class="hero-dots">' + dots + '</div>' : '') +
+      '</section>';
+  },
+
+  metaItem: function (icon, text) {
+    var paths = {
+      calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>',
+      eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+      clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/>',
+      tag: '<path d="M3.5 11V4.5H10L20 14.5 13.5 21 3.5 11Z"/><circle cx="7.5" cy="8" r="1.3"/>'
+    };
+    return '<span class="meta-item">' +
+      '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" ' +
+      'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" ' +
+      'stroke-linejoin="round">' + paths[icon] + '</svg>' + App.esc(text) + '</span>';
+  },
+
+  /* ------------------------------------------------------------ Statistik */
+
+  statSection: function (data) {
+    var s = data.stats;
+    var cards = [
+      { label: 'Jumlah Berita', value: s.totalNews, sub: 'telah diterbitkan', icon: 'doc' },
+      { label: 'Tahun Ini', value: s.publishedThisYear, sub: 'sepanjang tahun', icon: 'cal' },
+      { label: 'Galeri Foto', value: s.totalImages, sub: 'imej terkumpul', icon: 'img' },
+      { label: 'Kategori', value: s.totalCategories, sub: 'pelbagai bidang', icon: 'grid' }
+    ];
+
+    var icons = {
+      doc: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/>',
+      cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>',
+      img: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="m4 17 5-4.5 4.5 4 3-2.5L20 18"/>',
+      grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>'
+    };
+
+    return '<div class="portal-stats">' + cards.map(function (c) {
+      return '<div class="portal-stat">' +
+        '<span class="portal-stat-icon">' +
+        '<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true" fill="none" ' +
+        'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" ' +
+        'stroke-linejoin="round">' + icons[c.icon] + '</svg></span>' +
+        '<div><div class="portal-stat-label">' + App.esc(c.label) + '</div>' +
+        '<div class="portal-stat-value mono" data-count="' + c.value + '">0</div>' +
+        '<div class="portal-stat-sub">' + App.esc(c.sub) + '</div></div>' +
+        '</div>';
+    }).join('') + '</div>';
+  },
+
+  /* --------------------------------------------------------- Berita terkini */
+
+  latestSection: function (data) {
+    var self = this;
+    if (!data.latest.length) return '';
+
+    var cards = data.latest.map(function (a) {
+      var image = a.imageUrl
+        ? '<img src="' + App.esc(a.imageUrl) + '" alt="" loading="lazy">'
+        : '<div class="news-card-blank" aria-hidden="true"></div>';
+
+      return '<article class="news-card" data-read="' + App.esc(a.newsId) + '" tabindex="0" ' +
+        'role="button" aria-label="' + App.esc(a.title) + '">' +
+        '<div class="news-card-media">' + image +
+        '<span class="news-card-cat">' + App.esc(a.categoryName) + '</span></div>' +
+        '<div class="news-card-body">' +
+          '<h3 class="news-card-title">' + App.esc(a.title) + '</h3>' +
+          '<div class="meta-row">' +
+            self.metaItem('calendar', a.publishedAt) +
+            self.metaItem('eye', a.views) +
+            self.metaItem('clock', a.readMinutes + ' min') +
+          '</div>' +
+        '</div></article>';
+    }).join('');
+
+    return '<section class="portal-section">' +
+      '<div class="section-head">' +
+        '<h2 class="section-title">Berita Terkini</h2>' +
+        '<button class="link-more" data-all="1">Lihat semua' +
+        '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
+        '<path d="M5 12h13M12 5.5 18.5 12 12 18.5" stroke="currentColor" stroke-width="2" ' +
+        'fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
+      '</div>' +
+      '<div class="news-grid">' + cards + '</div></section>';
+  },
+
+  /* ------------------------------------------------------------ Sisi kanan */
+
+  briefSection: function (data) {
+    if (!data.brief.length) return '';
+
+    var items = data.brief.map(function (a) {
+      var thumb = a.imageUrl
+        ? '<img src="' + App.esc(a.imageUrl) + '" alt="" loading="lazy">'
+        : '<div class="brief-blank" aria-hidden="true"></div>';
+      return '<button class="brief-item" data-read="' + App.esc(a.newsId) + '">' +
+        '<span class="brief-thumb">' + thumb + '</span>' +
+        '<span class="brief-body"><span class="brief-title">' + App.esc(a.title) + '</span>' +
+        '<span class="brief-date">' + App.esc(a.publishedAt) + '</span></span></button>';
+    }).join('');
+
+    return '<section class="card portal-widget">' +
+      '<div class="widget-head"><h2>Berita Ringkas</h2></div>' +
+      '<div class="brief-list">' + items + '</div></section>';
+  },
+
+  /** Kalendar bulan semasa dengan penanda pada tarikh yang ada penerbitan */
+  calendarSection: function (data) {
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = now.getMonth();
+    var today = now.getDate();
+
+    var monthNames = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun',
+      'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+
+    var firstDay = new Date(year, month, 1).getDay();      // 0 = Ahad
+    var offset = (firstDay + 6) % 7;                        // minggu bermula Isnin
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    var active = {};
+    (data.activeDates || []).forEach(function (d) { active[d] = true; });
+
+    var cells = '';
+    for (var i = 0; i < offset; i++) cells += '<span class="cal-cell empty"></span>';
+
+    for (var day = 1; day <= daysInMonth; day++) {
+      var iso = year + '-' + ('0' + (month + 1)).slice(-2) + '-' + ('0' + day).slice(-2);
+      var classes = 'cal-cell';
+      if (day === today) classes += ' today';
+      if (active[iso]) classes += ' has-news';
+      cells += '<span class="' + classes + '">' + day + '</span>';
+    }
+
+    var heads = ['Isn', 'Sel', 'Rab', 'Kha', 'Jum', 'Sab', 'Ahd']
+      .map(function (d) { return '<span class="cal-head">' + d + '</span>'; }).join('');
+
+    return '<section class="card portal-widget">' +
+      '<div class="widget-head"><h2>Kalendar Penerbitan</h2></div>' +
+      '<div class="cal-pad">' +
+        '<div class="cal-month">' + monthNames[month] + ' ' + year + '</div>' +
+        '<div class="cal-grid">' + heads + cells + '</div>' +
+        '<p class="cal-legend"><span class="cal-dot"></span>Hari yang ada berita diterbitkan</p>' +
+      '</div></section>';
+  },
+
+  categorySection: function (data) {
+    if (!data.categories.length) return '';
+
+    var chips = data.categories.map(function (c) {
+      return '<button class="cat-chip" data-cat="' + App.esc(c.categoryId) + '">' +
+        '<span class="cat-name">' + App.esc(c.categoryName) + '</span>' +
+        '<span class="cat-count">' + c.count + '</span></button>';
+    }).join('');
+
+    return '<section class="card portal-widget">' +
+      '<div class="widget-head"><h2>Kategori</h2></div>' +
+      '<div class="cat-grid">' + chips + '</div></section>';
+  },
+
+  ctaSection: function (data) {
+    if (!data.canSubmit) return '';
+    return '<section class="portal-cta">' +
+      '<div><div class="cta-title">Ada berita untuk dikongsi?</div>' +
+      '<div class="cta-sub">Hantar kepada Unit IT FKM untuk disemak dan diterbitkan.</div></div>' +
+      '<button class="btn btn-accent" id="ctaWrite">Hantar Berita</button></section>';
+  },
+
+  /* -------------------------------------------------------------- Binding */
+
+  bind: function (container) {
+    var self = this;
+
+    container.querySelectorAll('[data-read]').forEach(function (node) {
+      node.addEventListener('click', function () {
+        App.navigate('portal-article', { newsId: node.dataset.read });
+      });
+      node.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          App.navigate('portal-article', { newsId: node.dataset.read });
+        }
+      });
+    });
+
+    container.querySelectorAll('[data-cat]').forEach(function (node) {
+      node.addEventListener('click', function () {
+        App.navigate('news-list', { categoryId: node.dataset.cat });
+      });
+    });
+
+    var all = container.querySelector('[data-all]');
+    if (all) all.addEventListener('click', function () { App.navigate('news-list'); });
+
+    var cta = container.querySelector('#ctaWrite');
+    if (cta) cta.addEventListener('click', function () {
+      App.navigate('news-form', { mode: 'create' });
+    });
+
+    container.querySelectorAll('.portal-stat-value[data-count]').forEach(function (node, i) {
+      setTimeout(function () { App.countUp(node, node.dataset.count, 750); }, i * 70);
+    });
+
+    container.querySelectorAll('[data-hero]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        self.goSlide(self.heroIndex + (btn.dataset.hero === 'next' ? 1 : -1));
+        self.startCarousel();
+      });
+    });
+
+    container.querySelectorAll('[data-dot]').forEach(function (dot) {
+      dot.addEventListener('click', function () {
+        self.goSlide(Number(dot.dataset.dot));
+        self.startCarousel();
+      });
+    });
+
+    self.startCarousel();
+  },
+
+  goSlide: function (index) {
+    var slides = document.querySelectorAll('.hero-slide');
+    var dots = document.querySelectorAll('.hero-dot');
+    if (!slides.length) return;
+
+    this.heroIndex = (index + slides.length) % slides.length;
+
+    slides.forEach(function (s, i) {
+      s.classList.toggle('active', i === this.heroIndex);
+    }, this);
+    dots.forEach(function (d, i) {
+      d.classList.toggle('active', i === this.heroIndex);
+    }, this);
+  },
+
+  /** Putaran automatik berhenti apabila tetikus berada di atas karusel */
+  startCarousel: function () {
+    var self = this;
+    self.stopCarousel();
+
+    var slides = document.querySelectorAll('.hero-slide');
+    if (slides.length < 2) return;
+    if (document.documentElement.getAttribute('data-motion') === 'off') return;
+
+    self.heroTimer = setInterval(function () {
+      if (App.state.page !== 'portal') { self.stopCarousel(); return; }
+      var carousel = document.querySelector('.hero-carousel');
+      if (carousel && carousel.matches(':hover')) return;
+      self.goSlide(self.heroIndex + 1);
+    }, 7000);
+  },
+
+  stopCarousel: function () {
+    if (this.heroTimer) { clearInterval(this.heroTimer); this.heroTimer = null; }
+  }
+};
+</script>

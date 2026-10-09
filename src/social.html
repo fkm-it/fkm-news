@@ -1,0 +1,239 @@
+<script>
+/* social.html — penyusun penerbitan media sosial.
+   Kredential TIDAK PERNAH dihantar ke klien; halaman ini hanya menghantar
+   ID berita, platform dan kapsyen. Server yang memegang token. */
+
+App.views['social'] = {
+
+  title: function () { return 'Media sosial'; },
+
+  /** Buka penyusun sebagai modal dari halaman butiran berita */
+  openComposer: function (newsId, onDone) {
+    var self = this;
+
+    App.openModal({
+      title: 'Hantar ke media sosial',
+      wide: true,
+      body: '<div>' + App.skeleton(4) + '</div>',
+      buttons: [{ label: 'Tutup', className: 'btn-ghost', onClick: App.closeModal }]
+    });
+
+    App.call('social.preview', { newsId: newsId }).then(function (preview) {
+      App.el('modalBody').innerHTML = self.composerBody(preview);
+      self.bindComposer(newsId, preview, onDone);
+    }).catch(function (err) {
+      App.el('modalBody').innerHTML =
+        '<p style="color:var(--danger-color)">' + App.esc(err.message) + '</p>';
+    });
+  },
+
+  composerBody: function (preview) {
+    var s = App.state.settings;
+
+    var platforms = '';
+    if (s.SOCIAL_FB_ENABLED) {
+      platforms += '<label class="platform-card selected" data-platform-card="FACEBOOK">' +
+        '<input type="checkbox" class="plat" value="FACEBOOK" checked>' +
+        '<span><span class="platform-name">Facebook Page</span><br>' +
+        '<span class="small muted">Satu gambar menjadi hantaran foto; ' +
+        'beberapa gambar menjadi album.</span></span></label>';
+    }
+    if (s.SOCIAL_IG_ENABLED) {
+      platforms += '<label class="platform-card selected" data-platform-card="INSTAGRAM">' +
+        '<input type="checkbox" class="plat" value="INSTAGRAM" checked>' +
+        '<span><span class="platform-name">Instagram Business</span><br>' +
+        '<span class="small muted">Memerlukan sekurang-kurangnya satu gambar. ' +
+        'Beberapa gambar menjadi carousel (maksimum ' + s.SOCIAL_MAX_IMAGES_IG + ').</span></span></label>';
+    }
+    if (!platforms) {
+      platforms = '<p class="small" style="color:var(--warning-color)">' +
+        'Tiada platform diaktifkan. Admin boleh mengaktifkannya dalam Tetapan.</p>';
+    }
+
+    var images = preview.images.length
+      ? '<div class="gallery">' + preview.images.map(function (img) {
+          return '<div class="thumb"><img src="' + App.esc(img.thumbUrl) + '" alt="">' +
+            (img.caption ? '<div class="thumb-body small muted">' +
+              App.esc(img.caption) + '</div>' : '') + '</div>';
+        }).join('') + '</div>'
+      : '<p class="small" style="color:var(--warning-color)">Tiada gambar ditanda untuk ' +
+        'media sosial. Buka Sunting &rsaquo; Galeri gambar dan tandakan sekurang-kurangnya satu.</p>';
+
+    var history = preview.history.length
+      ? '<div style="margin-top:6px">' + preview.history.map(function (p) {
+          return '<div class="small" style="padding:6px 0;border-bottom:1px solid var(--border-color)">' +
+            '<strong>' + App.esc(p.platform) + '</strong> · ' +
+            '<span class="' + (p.status === 'SUCCESS' ? 'status-ok' : 'status-fail') + '">' +
+            App.esc(p.status === 'SUCCESS' ? 'Berjaya' : 'Gagal') + '</span> · ' +
+            App.esc(p.completedAt) + ' · ' + App.esc(p.postedBy) +
+            (p.permalinkUrl ? ' · <a href="' + App.esc(p.permalinkUrl) +
+              '" target="_blank" rel="noopener">Lihat hantaran</a>' : '') +
+            (p.errorMessage ? '<br><span class="muted">' + App.esc(p.errorMessage) +
+              '</span>' : '') + '</div>';
+        }).join('') + '</div>'
+      : '';
+
+    return '' +
+      '<div class="field"><label>Platform</label>' +
+      '<div class="grid" style="gap:10px">' + platforms + '</div></div>' +
+
+      '<div class="field"><label>Gambar yang akan dihantar</label>' + images +
+      '<span class="help">Gambar ditukar kepada pautan awam sementara semasa penerbitan, ' +
+      'kemudian dikembalikan kepada akses domain sahaja.</span></div>' +
+
+      '<div class="field"><label for="socCaption">Kapsyen</label>' +
+      '<textarea id="socCaption" style="min-height:150px" maxlength="' +
+      s.SOCIAL_MAX_CAPTION + '">' + App.esc(preview.caption) + '</textarea>' +
+      '<div class="counter" id="capCount"></div>' +
+      '<span class="help">Instagram tidak menyokong pautan boleh klik dalam kapsyen.</span></div>' +
+
+      (history ? '<div class="field"><label>Sejarah penerbitan</label>' + history + '</div>' : '');
+  },
+
+  bindComposer: function (newsId, preview, onDone) {
+    var body = App.el('modalBody');
+    var caption = body.querySelector('#socCaption');
+    var count = body.querySelector('#capCount');
+    var max = App.state.settings.SOCIAL_MAX_CAPTION;
+
+    function updateCount() {
+      count.textContent = caption.value.length + ' / ' + max;
+      count.classList.toggle('over', caption.value.length > max);
+    }
+    updateCount();
+    caption.addEventListener('input', updateCount);
+
+    body.querySelectorAll('.plat').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        cb.closest('.platform-card').classList.toggle('selected', cb.checked);
+      });
+    });
+
+    App.el('modalFoot').innerHTML = '';
+    var cancel = App.h('<button class="btn btn-ghost">Batal</button>');
+    cancel.addEventListener('click', App.closeModal);
+
+    var send = App.h('<button class="btn btn-accent">Hantar sekarang</button>');
+    send.addEventListener('click', function () {
+      var platforms = Array.prototype.slice.call(body.querySelectorAll('.plat'))
+        .filter(function (cb) { return cb.checked; })
+        .map(function (cb) { return cb.value; });
+
+      if (!platforms.length) {
+        App.toast('Pilih sekurang-kurangnya satu platform.', 'warning');
+        return;
+      }
+      if (platforms.indexOf('INSTAGRAM') !== -1 && !preview.images.length) {
+        App.toast('Instagram memerlukan sekurang-kurangnya satu gambar.', 'warning');
+        return;
+      }
+
+      send.disabled = true;
+      send.textContent = 'Menghantar…';
+
+      App.call('social.publish', {
+        newsId: newsId,
+        platforms: platforms,
+        options: { caption: caption.value }
+      }).then(function (res) {
+        res.results.forEach(function (r) {
+          App.toast(r.platform + (r.ok ? ': berjaya dihantar.' : ': gagal — ' + r.message),
+            r.ok ? 'success' : 'error');
+        });
+        App.closeModal();
+        if (onDone) onDone();
+      }).catch(App.fail).then(function () {
+        send.disabled = false;
+        send.textContent = 'Hantar sekarang';
+      });
+    });
+
+    App.el('modalFoot').appendChild(cancel);
+    App.el('modalFoot').appendChild(send);
+  },
+
+  /** Panel konfigurasi — dipaparkan dalam halaman Tetapan (Admin sahaja) */
+  renderConfigPanel: function (mount) {
+    var self = this;
+    mount.innerHTML = App.skeleton(3);
+
+    return App.call('social.configStatus').then(function (cfg) {
+      mount.innerHTML =
+        '<p class="small muted" style="margin:0 0 14px">' +
+          'Token akses disimpan dalam Script Properties dan tidak pernah dihantar ' +
+          'ke pelayar. Medan token kosong bermakna nilai sedia ada dikekalkan.' +
+        '</p>' +
+
+        '<div class="field-row">' +
+          '<div class="field"><label for="fbPage">Facebook Page ID</label>' +
+          '<input type="text" id="fbPage" placeholder="' +
+          App.esc(cfg.facebook.pageIdMasked || 'contoh: 1234567890') + '">' +
+          '<span class="help">' + (cfg.facebook.pageIdSet ? 'Sudah ditetapkan.' :
+            'Belum ditetapkan.') + '</span></div>' +
+
+          '<div class="field"><label for="igUser">Instagram Business User ID</label>' +
+          '<input type="text" id="igUser" placeholder="' +
+          App.esc(cfg.instagram.userIdMasked || 'contoh: 17841400000000000') + '">' +
+          '<span class="help">' + (cfg.instagram.userIdSet ? 'Sudah ditetapkan.' :
+            'Belum ditetapkan.') + '</span></div>' +
+        '</div>' +
+
+        '<div class="field"><label for="fbToken">Page Access Token (long-lived)</label>' +
+        '<input type="text" id="fbToken" placeholder="' +
+        (cfg.facebook.tokenSet ? 'Token sedia ada dikekalkan — isi untuk menggantikan'
+                               : 'Tampal token di sini') + '">' +
+        '<span class="help">Token yang sama digunakan untuk Facebook dan Instagram ' +
+        'kerana akaun IG dipautkan kepada Page.</span></div>' +
+
+        '<div class="row">' +
+          '<button class="btn" id="saveCred">Simpan kredential</button>' +
+          '<button class="btn btn-ghost" id="testCred">Uji sambungan</button>' +
+        '</div>' +
+        '<div id="testResult" style="margin-top:12px"></div>';
+
+      mount.querySelector('#saveCred').addEventListener('click', function (e) {
+        var data = {
+          fbPageId: mount.querySelector('#fbPage').value.trim(),
+          igUserId: mount.querySelector('#igUser').value.trim(),
+          fbPageToken: mount.querySelector('#fbToken').value.trim()
+        };
+        if (!data.fbPageId) delete data.fbPageId;
+        if (!data.igUserId) delete data.igUserId;
+
+        e.target.disabled = true;
+        App.call('social.saveCredentials', { data: data }).then(function () {
+          App.toast('Kredential disimpan.', 'success');
+          self.renderConfigPanel(mount);
+        }).catch(App.fail).then(function () { e.target.disabled = false; });
+      });
+
+      mount.querySelector('#testCred').addEventListener('click', function (e) {
+        var out = mount.querySelector('#testResult');
+        out.innerHTML = '<span class="small muted">Menguji…</span>';
+        e.target.disabled = true;
+
+        App.call('social.testConnection').then(function (res) {
+          var lines = [];
+          ['facebook', 'instagram'].forEach(function (key) {
+            var r = res[key];
+            if (!r) return;
+            var name = key === 'facebook' ? 'Facebook' : 'Instagram';
+            lines.push(r.ok
+              ? '<div class="small status-ok">' + name + ': tersambung — ' +
+                App.esc(r.name || r.username) + '</div>'
+              : '<div class="small status-fail">' + name + ': ' + App.esc(r.message) + '</div>');
+          });
+          out.innerHTML = lines.length ? lines.join('')
+            : '<span class="small muted">Tiada platform diaktifkan untuk diuji.</span>';
+        }).catch(App.fail).then(function () { e.target.disabled = false; });
+      });
+    });
+  },
+
+  render: function (container) {
+    container.innerHTML = App.emptyState('Media sosial',
+      'Buka satu berita yang telah diterbitkan, kemudian pilih "Hantar ke media sosial".');
+    return Promise.resolve();
+  }
+};
+</script>

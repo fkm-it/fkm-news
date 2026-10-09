@@ -1,0 +1,688 @@
+<script>
+/* settings.html — Global Settings, kategori, kad ucapan, media sosial, log audit.
+   Setiap perubahan disahkan semula di server melalui validateGlobalSetting(). */
+
+App.views['settings'] = {
+
+  tab: 'Branding',
+  schema: [],
+
+  title: function () { return 'Tetapan'; },
+
+  render: function (container) {
+    var self = this;
+    return App.call('settings.schema').then(function (schema) {
+      self.schema = schema;
+      container.innerHTML =
+        '<section class="card section">' +
+          '<div class="panel-head">' +
+            '<span class="panel-icon">' + App.icon('settings', 18) + '</span>' +
+            '<div><div class="panel-title">Global Settings</div>' +
+            '<div class="panel-sub">Satu pusat kawalan untuk reka bentuk dan kelakuan sistem</div></div>' +
+          '</div>' +
+          '<div class="toolbar" id="tabs"></div>' +
+        '</section>' +
+        '<section class="card section" id="settingsCard"></section>' +
+        '<section class="card section" id="categoryCard"></section>' +
+        '<section class="card section" id="greetingCard"></section>' +
+        '<section class="card section" id="auditCard"></section>';
+
+      self.renderTabs(container);
+      self.renderGroup(container);
+      self.renderCategories(container);
+      self.renderGreetings(container);
+      self.renderAudit(container);
+    });
+  },
+
+  groups: function () {
+    var seen = [];
+    this.schema.forEach(function (s) {
+      if (seen.indexOf(s.group) === -1) seen.push(s.group);
+    });
+    return seen;
+  },
+
+  renderTabs: function (container) {
+    var self = this;
+    var tabs = container.querySelector('#tabs');
+    var labels = {
+      Branding: 'Jenama', Theme: 'Warna', Typography: 'Tipografi', Layout: 'Susun atur',
+      Workflow: 'Aliran kerja', Article: 'Artikel', Upload: 'Muat naik',
+      Notification: 'Notifikasi', Security: 'Keselamatan', Dashboard: 'Papan pemuka',
+      System: 'Sistem', Feature: 'Ciri', Social: 'Media sosial', Label: 'Label',
+      Dark: 'Mod gelap', Effects: 'Kesan visual', Links: 'Pautan pantas'
+    };
+
+    tabs.innerHTML = self.groups().map(function (g) {
+      return '<button class="btn btn-sm ' + (g === self.tab ? '' : 'btn-ghost') +
+        '" data-tab="' + App.esc(g) + '">' + App.esc(labels[g] || g) + '</button>';
+    }).join('');
+
+    tabs.querySelectorAll('[data-tab]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        self.tab = btn.dataset.tab;
+        self.renderTabs(container);
+        self.renderGroup(container);
+      });
+    });
+  },
+
+  renderGroup: function (container) {
+    var self = this;
+    var card = container.querySelector('#settingsCard');
+
+    // Panel khas media sosial: kredential + ujian sambungan
+    if (self.tab === 'Social') {
+      card.innerHTML = '<div class="card-head"><h2>Kredential Meta</h2></div>' +
+        '<div class="card-pad" id="socialPanel"></div>' +
+        '<div class="card-head"><h2>Tetapan media sosial</h2></div>' +
+        '<div class="card-pad" id="socialSettings"></div>';
+      App.views['social'].renderConfigPanel(card.querySelector('#socialPanel'));
+      self.renderFields(card.querySelector('#socialSettings'), container);
+      return;
+    }
+
+    card.innerHTML = '<div class="card-head"><h2>' + App.esc(self.tab) + '</h2></div>' +
+      '<div class="card-pad" id="fields"></div>';
+    self.renderFields(card.querySelector('#fields'), container);
+  },
+
+  renderFields: function (mount, container) {
+    var self = this;
+    var items = self.schema.filter(function (s) { return s.group === self.tab; });
+
+    mount.innerHTML = items.map(function (s) {
+      return '<div class="field"><label for="set_' + App.esc(s.key) + '">' +
+        App.esc(s.description || s.key) + '</label>' +
+        self.control(s) +
+        '<span class="help">' + App.esc(s.key) + '</span>' +
+        '<span class="error" id="err_' + App.esc(s.key) + '"></span></div>';
+    }).join('') +
+    '<div class="row"><button class="btn" id="saveSettings">Simpan perubahan</button>' +
+    '<span class="small muted" id="saveHint"></span></div>';
+
+    mount.querySelector('#saveSettings').addEventListener('click', function (e) {
+      self.save(mount, items, e.target, container);
+    });
+  },
+
+  control: function (s) {
+    var id = 'set_' + App.esc(s.key);
+    var value = s.type === 'json' ? JSON.stringify(s.value, null, 2)
+      : (Array.isArray(s.value) ? s.value.join(',') : String(s.value));
+
+    if (s.type === 'boolean') {
+      return '<select id="' + id + '" data-key="' + App.esc(s.key) + '">' +
+        '<option value="true"' + (s.value ? ' selected' : '') + '>Ya</option>' +
+        '<option value="false"' + (!s.value ? ' selected' : '') + '>Tidak</option></select>';
+    }
+    if (s.options) {
+      return '<select id="' + id + '" data-key="' + App.esc(s.key) + '">' +
+        s.options.map(function (o) {
+          return '<option value="' + App.esc(o) + '"' +
+            (String(s.value) === o ? ' selected' : '') + '>' + App.esc(o) + '</option>';
+        }).join('') + '</select>';
+    }
+    if (s.type === 'color') {
+      return '<div class="row" style="gap:8px">' +
+        '<input type="text" id="' + id + '" data-key="' + App.esc(s.key) + '" value="' +
+        App.esc(value) + '" style="flex:1">' +
+        '<span style="width:34px;height:34px;border-radius:8px;border:1px solid var(--border-color);' +
+        'background:' + App.esc(value) + '"></span></div>';
+    }
+    if (s.type === 'json') {
+      return '<textarea id="' + id + '" data-key="' + App.esc(s.key) +
+        '" style="font-family:ui-monospace,monospace;font-size:.8rem;min-height:160px">' +
+        App.esc(value) + '</textarea>';
+    }
+    if (s.type === 'number') {
+      return '<input type="number" id="' + id + '" data-key="' + App.esc(s.key) +
+        '" value="' + App.esc(value) + '">';
+    }
+    return '<input type="text" id="' + id + '" data-key="' + App.esc(s.key) +
+      '" value="' + App.esc(value) + '">';
+  },
+
+  save: function (mount, items, button, container) {
+    var self = this;
+    var changed = [];
+
+    items.forEach(function (s) {
+      var node = mount.querySelector('[data-key="' + s.key + '"]');
+      if (!node) return;
+      var current = s.type === 'json' ? JSON.stringify(s.value, null, 2)
+        : (Array.isArray(s.value) ? s.value.join(',') : String(s.value));
+      if (node.value !== current) changed.push({ key: s.key, value: node.value });
+    });
+
+    if (!changed.length) {
+      App.toast('Tiada perubahan untuk disimpan.');
+      return;
+    }
+
+    button.classList.add('is-loading');
+    button.disabled = true;
+
+    var chain = Promise.resolve();
+    var failures = [];
+
+    changed.forEach(function (c) {
+      chain = chain.then(function () {
+        return App.call('settings.update', c).catch(function (err) {
+          failures.push(c.key + ': ' + err.message);
+          var errNode = mount.querySelector('#err_' + c.key);
+          if (errNode) errNode.textContent = err.message;
+        });
+      });
+    });
+
+    chain.then(function () {
+      button.classList.remove('is-loading');
+      button.disabled = false;
+
+      if (failures.length) {
+        App.toast(failures.length + ' tetapan gagal disimpan.', 'error');
+      } else {
+        App.toast(changed.length + ' tetapan dikemas kini.', 'success');
+      }
+
+      // Muat semula tetapan awam supaya tema dan label dikemas kini serta-merta
+      return App.call('settings.public').then(function (settings) {
+        App.state.settings = settings;
+        App.navigate('settings');
+      });
+    }).catch(App.fail);
+  },
+
+  renderCategories: function (container) {
+    var self = this;
+    var card = container.querySelector('#categoryCard');
+    card.innerHTML = '<div class="panel-head">' +
+      '<span class="panel-icon">' + App.icon('grid', 18) + '</span>' +
+      '<div><div class="panel-title">Kategori berita</div></div>' +
+      '<span class="spacer"></span>' +
+      '<button class="btn btn-sm" id="addCat">' + App.icon('plus', 14) +
+      'Tambah kategori</button></div>' +
+      '<div class="card-pad" id="catList">' + App.skeleton(3) + '</div>';
+
+    card.querySelector('#addCat').addEventListener('click', function () {
+      self.openCategoryForm(container, null);
+    });
+
+    App.call('category.list', { activeOnly: false }).then(function (cats) {
+      var list = card.querySelector('#catList');
+      if (!cats.length) {
+        list.innerHTML = '<p class="small muted" style="margin:0">Tiada kategori.</p>';
+        return;
+      }
+      list.innerHTML = '<div class="table-wrap"><table><thead><tr>' +
+        '<th>Nama</th><th>Keterangan</th><th>Status</th><th></th></tr></thead><tbody>' +
+        cats.map(function (c) {
+          return '<tr><td class="cell-title">' + App.esc(c.categoryName) + '</td>' +
+            '<td class="cell-sub">' + App.esc(c.description || '—') + '</td>' +
+            '<td>' + App.statusPill(c.status === 'ACTIVE' ? 'Aktif' : 'Tidak aktif',
+              c.status === 'ACTIVE' ? 'var(--success-color)' : 'var(--muted-color)') + '</td>' +
+            '<td><button class="btn btn-ghost btn-sm" data-cat="' + App.esc(c.categoryId) +
+            '">Sunting</button></td></tr>';
+        }).join('') + '</tbody></table></div>';
+
+      list.querySelectorAll('[data-cat]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var cat = cats.filter(function (c) { return c.categoryId === btn.dataset.cat; })[0];
+          self.openCategoryForm(container, cat);
+        });
+      });
+    }).catch(App.fail);
+  },
+
+  openCategoryForm: function (container, cat) {
+    var self = this;
+    cat = cat || { categoryId: '', categoryName: '', description: '', status: 'ACTIVE' };
+
+    App.openModal({
+      title: cat.categoryId ? 'Sunting kategori' : 'Kategori baharu',
+      body:
+        '<div class="field"><label for="cName">Nama kategori</label>' +
+        '<input type="text" id="cName" value="' + App.esc(cat.categoryName) + '"></div>' +
+        '<div class="field"><label for="cDesc">Keterangan</label>' +
+        '<textarea id="cDesc" style="min-height:70px">' + App.esc(cat.description) +
+        '</textarea></div>' +
+        '<div class="field"><label for="cStatus">Status</label><select id="cStatus">' +
+        '<option value="ACTIVE"' + (cat.status === 'ACTIVE' ? ' selected' : '') + '>Aktif</option>' +
+        '<option value="INACTIVE"' + (cat.status === 'INACTIVE' ? ' selected' : '') +
+        '>Tidak aktif</option></select></div>',
+      buttons: [
+        { label: 'Batal', className: 'btn-ghost', onClick: App.closeModal },
+        { label: 'Simpan', className: 'btn', onClick: function (btn) {
+            var body = App.el('modalBody');
+            btn.disabled = true;
+            App.call('category.save', { data: {
+              categoryId: cat.categoryId,
+              categoryName: body.querySelector('#cName').value.trim(),
+              description: body.querySelector('#cDesc').value.trim(),
+              status: body.querySelector('#cStatus').value
+            } }).then(function () {
+              App.closeModal();
+              App.toast('Kategori disimpan.', 'success');
+              self.renderCategories(container);
+            }).catch(App.fail).then(function () { btn.disabled = false; });
+          } }
+      ]
+    });
+  },
+
+  /* ============================================================ Kad ucapan
+     Pengganti menaip terus dalam sheet GREETING_CARDS.
+
+     Keadaan setiap kad dikira di pelayan oleh GreetingCardService — fungsi
+     yang SAMA yang memilih kad untuk portal awam. Jadi label "Sedang
+     dipaparkan" di sini sentiasa sepadan dengan apa yang pembaca lihat.
+     ===================================================================== */
+
+  showExpiredGreetings: false,
+
+  /** Label, warna dan penjelasan bagi setiap keadaan kad. */
+  greetingStates: {
+    LIVE:         ['Sedang dipaparkan', 'var(--success-color)',
+                   'Kad ini muncul di portal awam hari ini.'],
+    OUTRANKED:    ['Kalah kepada kad lain', 'var(--warning-color)',
+                   'Dalam julat tarikh, tetapi kad lain mempunyai override atau keutamaan lebih tinggi.'],
+    NO_POSTER:    ['Tiada poster', 'var(--danger-color)',
+                   'Dalam julat tarikh, tetapi tidak akan dipaparkan kerana tiada poster.'],
+    INVALID_DATE: ['Tarikh rosak', 'var(--danger-color)',
+                   'Tarikh dalam sheet tidak dapat dibaca. Sunting kad ini dan pilih tarikh semula.'],
+    UPCOMING:     ['Akan datang', 'var(--info-color)', 'Tarikh mula belum tiba.'],
+    DISABLED:     ['Tidak aktif', 'var(--muted-color)', 'Disembunyikan secara manual.'],
+    EXPIRED:      ['Tamat', 'var(--muted-color)', 'Tarikh tamat sudah berlalu.']
+  },
+
+  greetingMonths: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun',
+                   'Jul', 'Ogos', 'Sep', 'Okt', 'Nov', 'Dis'],
+
+  renderGreetings: function (container) {
+    var self = this;
+    var card = container.querySelector('#greetingCard');
+    if (!card) return;
+
+    card.innerHTML = '<div class="panel-head">' +
+      '<span class="panel-icon">' + App.icon('calendar', 18) + '</span>' +
+      '<div><div class="panel-title">Kad ucapan</div>' +
+      '<div class="panel-sub" id="gcToday">Memuatkan…</div></div>' +
+      '<span class="spacer"></span>' +
+      '<button class="btn btn-sm" id="addGreeting">' + App.icon('plus', 14) +
+      'Tambah kad</button></div>' +
+      '<div class="card-pad" id="gcList">' + App.skeleton(3) + '</div>';
+
+    card.querySelector('#addGreeting').addEventListener('click', function () {
+      self.openGreetingForm(container, null);
+    });
+
+    App.call('greeting.list').then(function (res) {
+      self.renderGreetingList(container, res);
+    }).catch(function (err) {
+      card.querySelector('#gcToday').textContent = '';
+      card.querySelector('#gcList').innerHTML =
+        '<p class="small muted" style="margin:0">' + App.esc(err.message) + '</p>';
+    });
+  },
+
+  renderGreetingList: function (container, res) {
+    var self = this;
+    var card = container.querySelector('#greetingCard');
+    var list = card.querySelector('#gcList');
+    var cards = (res && res.cards) || [];
+
+    var live = cards.filter(function (c) { return c.state === 'LIVE'; })[0];
+    card.querySelector('#gcToday').innerHTML = live
+      ? 'Dipaparkan hari ini: <strong>' + App.esc(live.title) + '</strong>'
+      : 'Tiada kad dipaparkan di portal hari ini.';
+
+    if (!cards.length) {
+      list.innerHTML = App.emptyState('Tiada kad ucapan',
+        'Tambah kad untuk hari perayaan, cuti umum atau acara fakulti.', '', 'calendar');
+      return;
+    }
+
+    // Kad tamat disembunyikan secara lalai. Senarai ini membesar setiap
+    // tahun — 18 cuti umum sahaja setahun — dan kad lama menenggelamkan
+    // kad yang perlu diurus sekarang.
+    var expired = cards.filter(function (c) { return c.state === 'EXPIRED'; }).length;
+    var shown = self.showExpiredGreetings ? cards
+      : cards.filter(function (c) { return c.state !== 'EXPIRED'; });
+
+    list.innerHTML =
+      (shown.length
+        ? '<div class="table-wrap"><table><thead><tr>' +
+          '<th>Poster</th><th>Tajuk</th><th>Tarikh</th><th>Keutamaan</th>' +
+          '<th>Keadaan</th><th></th></tr></thead><tbody>' +
+          shown.map(function (c) { return self.greetingRow(c); }).join('') +
+          '</tbody></table></div>'
+        : '<p class="small muted" style="margin:0">Tiada kad aktif atau akan datang.</p>') +
+      (expired
+        ? '<div class="row" style="margin-top:12px"><button class="btn btn-ghost btn-sm" ' +
+          'id="gcToggleExpired">' + (self.showExpiredGreetings ? 'Sembunyikan' : 'Papar') +
+          ' kad tamat (' + expired + ')</button></div>'
+        : '');
+
+    var byId = {};
+    cards.forEach(function (c) { byId[c.cardId] = c; });
+
+    list.querySelectorAll('[data-gc-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        self.openGreetingForm(container, byId[btn.dataset.gcEdit]);
+      });
+    });
+    list.querySelectorAll('[data-gc-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        self.deleteGreeting(container, byId[btn.dataset.gcDel]);
+      });
+    });
+
+    var toggle = list.querySelector('#gcToggleExpired');
+    if (toggle) toggle.addEventListener('click', function () {
+      self.showExpiredGreetings = !self.showExpiredGreetings;
+      self.renderGreetingList(container, res);
+    });
+  },
+
+  greetingRow: function (c) {
+    var st = this.greetingStates[c.state] || [c.state, 'var(--muted-color)', ''];
+
+    var thumb = c.posterPreview
+      ? '<img src="' + App.esc(c.posterPreview) + '" alt="" loading="lazy" ' +
+        'style="width:40px;height:50px;object-fit:cover;border-radius:6px;display:block">'
+      : '<div style="width:40px;height:50px;border-radius:6px;' +
+        'border:1px dashed var(--border-color)"></div>';
+
+    // Tarikh rosak dipaparkan seperti yang tersimpan dalam sel, supaya Admin
+    // nampak apa sebenarnya yang salah.
+    var dates = c.state === 'INVALID_DATE'
+      ? '<span style="color:var(--danger-color)">' +
+        App.esc(c.rawStart || c.startDate || '—') + ' → ' +
+        App.esc(c.rawEnd || c.endDate || '—') + '</span>'
+      : App.esc(this.greetingDateRange(c.startDate, c.endDate));
+
+    return '<tr>' +
+      '<td>' + thumb + '</td>' +
+      '<td class="cell-title">' + App.esc(c.title) +
+        (c.isOverride ? ' <span class="small muted">· override</span>' : '') +
+        (c.titleEn ? '<div class="cell-sub">' + App.esc(c.titleEn) + '</div>' : '') + '</td>' +
+      '<td class="cell-sub" style="white-space:nowrap">' + dates + '</td>' +
+      '<td class="cell-sub">' + App.esc(c.priority) + '</td>' +
+      '<td><span title="' + App.esc(st[2]) + '">' + App.statusPill(st[0], st[1]) + '</span></td>' +
+      '<td style="white-space:nowrap">' +
+        '<button class="btn btn-ghost btn-sm" data-gc-edit="' + App.esc(c.cardId) +
+        '">Sunting</button> ' +
+        '<button class="btn btn-ghost btn-sm" data-gc-del="' + App.esc(c.cardId) +
+        '">Padam</button></td>' +
+      '</tr>';
+  },
+
+  greetingDate: function (s) {
+    var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return s || '—';
+    return Number(m[3]) + ' ' + this.greetingMonths[Number(m[2]) - 1] + ' ' + m[1];
+  },
+
+  greetingDateRange: function (a, b) {
+    if (!a && !b) return '—';
+    if (a === b) return this.greetingDate(a);
+    return this.greetingDate(a) + ' – ' + this.greetingDate(b);
+  },
+
+  /**
+   * Pratonton poster daripada pautan Drive, dengan peraturan yang sama
+   * seperti normalizeImageUrl_() di pelayan. /uc?export=view tidak lagi
+   * memulangkan imej, jadi setiap bentuk pautan ditukar kepada /thumbnail.
+   */
+  greetingThumb: function (url) {
+    url = String(url || '').trim();
+    if (!url) return '';
+    if (url.indexOf('drive.google.com') === -1) return url;
+    var m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+            url.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+            url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400' : url;
+  },
+
+  openGreetingForm: function (container, c) {
+    var self = this;
+    var isNew = !c;
+    c = c || {
+      cardId: '', title: '', titleEn: '', startDate: '', endDate: '',
+      posterUrl: '', posterPreview: '', isOverride: false, isActive: true, priority: 5
+    };
+
+    var chosenFile = null;
+    var objectUrl = '';
+    var maxMb = Number(App.state.settings.MAX_FILE_SIZE_MB) || 10;
+
+    var preview = c.posterPreview
+      ? '<img src="' + App.esc(c.posterPreview) + '" alt="" style="width:100%;height:100%;object-fit:cover">'
+      : '';
+
+    App.openModal({
+      title: isNew ? 'Kad ucapan baharu' : 'Sunting kad ucapan',
+      wide: true,
+      body:
+        '<div id="gcFeedback"></div>' +
+
+        '<div class="field"><label for="gcTitle">Tajuk (Bahasa Melayu)</label>' +
+          '<input type="text" id="gcTitle" maxlength="120" value="' + App.esc(c.title) + '"></div>' +
+
+        '<div class="field"><label for="gcTitleEn">Tajuk (English)</label>' +
+          '<input type="text" id="gcTitleEn" maxlength="120" value="' + App.esc(c.titleEn) + '">' +
+          '<span class="help">Kosongkan untuk menggunakan tajuk Bahasa Melayu.</span></div>' +
+
+        '<div class="row" style="gap:12px;align-items:flex-start">' +
+          '<div class="field" style="flex:1"><label for="gcStart">Tarikh mula</label>' +
+            '<input type="date" id="gcStart" value="' + App.esc(c.startDate) + '"></div>' +
+          '<div class="field" style="flex:1"><label for="gcEnd">Tarikh tamat</label>' +
+            '<input type="date" id="gcEnd" value="' + App.esc(c.endDate) + '">' +
+            '<span class="help">Kad dipaparkan hingga 11:59 malam pada hari ini.</span></div>' +
+        '</div>' +
+
+        '<div class="field"><label for="gcFile">Poster</label>' +
+          '<div class="row" style="gap:14px;align-items:flex-start">' +
+            '<div id="gcPreview" style="width:96px;height:120px;border-radius:8px;overflow:hidden;' +
+              'flex-shrink:0;border:1px solid var(--border-color);background:var(--background-color)">' +
+              preview + '</div>' +
+            '<div style="flex:1;min-width:0">' +
+              '<input type="file" id="gcFile" accept="image/jpeg,image/png,image/webp">' +
+              '<span class="help">Saiz disyorkan 1080 × 1350 px (nisbah 4:5), maksimum ' +
+                maxMb + ' MB. Poster dibuka kepada umum secara automatik.</span>' +
+              '<input type="text" id="gcUrl" style="margin-top:10px" ' +
+                'placeholder="atau tampal pautan Google Drive" value="' + App.esc(c.posterUrl) + '">' +
+              '<span class="help" id="gcRatio"></span>' +
+            '</div>' +
+          '</div></div>' +
+
+        '<div class="row" style="gap:12px;align-items:flex-start">' +
+          '<div class="field" style="flex:1"><label for="gcPriority">Keutamaan (0–100)</label>' +
+            '<input type="number" id="gcPriority" min="0" max="100" value="' +
+            App.esc(c.priority) + '">' +
+            '<span class="help">Nombor lebih besar menang apabila dua kad bertindih.</span></div>' +
+          '<div class="field" style="flex:1"><label>Pilihan</label>' +
+            '<label class="check small"><input type="checkbox" id="gcOverride"' +
+              (c.isOverride ? ' checked' : '') + '> <span>Mengatasi cuti umum pada tarikh sama</span></label>' +
+            '<label class="check small"><input type="checkbox" id="gcActive"' +
+              (c.isActive ? ' checked' : '') + '> <span>Aktif</span></label>' +
+          '</div>' +
+        '</div>',
+
+      onClose: function () {
+        // Bebaskan memori pratonton fail tempatan.
+        if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = ''; }
+      },
+
+      buttons: [
+        { label: 'Batal', className: 'btn-ghost', onClick: App.closeModal },
+        { label: 'Simpan', className: 'btn', onClick: function (btn) { save(btn); } }
+      ]
+    });
+
+    var body = App.el('modalBody');
+    var fileInput = body.querySelector('#gcFile');
+    var urlInput = body.querySelector('#gcUrl');
+    var previewBox = body.querySelector('#gcPreview');
+    var ratioHint = body.querySelector('#gcRatio');
+
+    function showPreview(src) {
+      previewBox.innerHTML = src
+        ? '<img src="' + App.esc(src) + '" alt="" style="width:100%;height:100%;object-fit:cover">'
+        : '';
+    }
+
+    /*
+     * Rail sisi portal memotong poster kepada nisbah 4:5. Poster landskap
+     * akan kehilangan hampir separuh kandungannya — termasuk teks ucapan
+     * yang biasanya di tengah. Amaran sahaja; Admin masih boleh teruskan.
+     */
+    function checkRatio(img) {
+      var w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h) { ratioHint.textContent = ''; return; }
+      var off = Math.abs(w / h - 0.8) > 0.08;
+      ratioHint.textContent = w + ' × ' + h + ' px' +
+        (off ? ' — bukan nisbah 4:5, bahagian tepi akan dipotong di portal.' : ' — sesuai.');
+      ratioHint.style.color = off ? 'var(--warning-color)' : '';
+    }
+
+    fileInput.addEventListener('change', function () {
+      App.clearInvalid(body);
+      ratioHint.textContent = '';
+      if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = ''; }
+
+      var f = fileInput.files && fileInput.files[0];
+      if (!f) {
+        chosenFile = null;
+        urlInput.disabled = false;
+        showPreview(self.greetingThumb(urlInput.value));
+        return;
+      }
+
+      // Semak saiz di sini, bukan hanya di pelayan: fail 30 MB akan
+      // dimuat naik sepenuhnya sebelum pelayan sempat menolaknya.
+      if (f.size > maxMb * 1024 * 1024) {
+        fileInput.value = '';
+        chosenFile = null;
+        App.markInvalid(fileInput, 'Fail melebihi ' + maxMb + ' MB.');
+        return;
+      }
+
+      chosenFile = f;
+      urlInput.disabled = true;   // fail mengatasi pautan
+      objectUrl = URL.createObjectURL(f);
+      showPreview(objectUrl);
+      var probe = new Image();
+      probe.onload = function () { checkRatio(probe); };
+      probe.src = objectUrl;
+    });
+
+    urlInput.addEventListener('input', App.debounce(function () {
+      if (chosenFile) return;
+      ratioHint.textContent = '';
+      showPreview(self.greetingThumb(urlInput.value));
+    }, 400));
+
+    function save(btn) {
+      App.clearInvalid(body);
+      App.formFeedback(body.querySelector('#gcFeedback'), '', '');
+
+      var title = body.querySelector('#gcTitle').value.trim();
+      var start = body.querySelector('#gcStart').value;
+      var end = body.querySelector('#gcEnd').value;
+      var bad = false;
+
+      if (!title) { App.markInvalid(body.querySelector('#gcTitle'), 'Tajuk wajib diisi.'); bad = true; }
+      if (!start) { App.markInvalid(body.querySelector('#gcStart'), 'Pilih tarikh mula.'); bad = true; }
+      if (!end) { App.markInvalid(body.querySelector('#gcEnd'), 'Pilih tarikh tamat.'); bad = true; }
+      // Format yyyy-mm-dd boleh dibandingkan sebagai teks.
+      if (start && end && end < start) {
+        App.markInvalid(body.querySelector('#gcEnd'),
+          'Tarikh tamat tidak boleh lebih awal daripada tarikh mula.');
+        bad = true;
+      }
+      if (bad) return;
+
+      var data = {
+        cardId: c.cardId,
+        title: title,
+        titleEn: body.querySelector('#gcTitleEn').value.trim(),
+        startDate: start,
+        endDate: end,
+        priority: body.querySelector('#gcPriority').value,
+        isOverride: body.querySelector('#gcOverride').checked,
+        isActive: body.querySelector('#gcActive').checked
+      };
+
+      // Pautan hanya dihantar jika berubah. Menghantarnya semula tanpa
+      // berubah memaksa pelayan menyemak keizinan Drive pada setiap simpan.
+      var urlNow = urlInput.value.trim();
+      if (!chosenFile && urlNow !== (c.posterUrl || '')) data.posterUrl = urlNow;
+
+      App.withLoading(btn, function () {
+        var read = chosenFile ? App.fileToBase64(chosenFile) : Promise.resolve(null);
+        return read.then(function (file) {
+          if (file) data.posterFile = file;
+          return App.call('greeting.save', { data: data });
+        });
+      }).then(function (res) {
+        App.closeModal();
+        App.toast(isNew ? 'Kad ucapan ditambah.' : 'Kad ucapan dikemas kini.', 'success');
+        (res && res.warnings || []).forEach(function (w) { App.toast(w, 'warning'); });
+        self.renderGreetings(container);
+      }).catch(function (err) {
+        App.formFeedback(body.querySelector('#gcFeedback'), 'error', err.message);
+      });
+    }
+  },
+
+  deleteGreeting: function (container, c) {
+    var self = this;
+    if (!c) return;
+
+    App.confirmModal('Padam kad ucapan',
+      'Kad "' + c.title + '" akan dipadam. Fail poster dalam Google Drive tidak dibuang. ' +
+      'Untuk menyembunyikannya sementara sahaja, sunting kad dan nyahtanda "Aktif".',
+      'Padam', 'danger'
+    ).then(function (yes) {
+      if (!yes) return;
+      return App.call('greeting.remove', { cardId: c.cardId }).then(function () {
+        App.toast('Kad ucapan dipadam.', 'success');
+        self.renderGreetings(container);
+      });
+    }).catch(App.fail);
+  },
+
+  renderAudit: function (container) {
+    if (!App.state.settings.FEATURE_AUDIT_UI) return;
+    var card = container.querySelector('#auditCard');
+    card.innerHTML = '<div class="panel-head">' +
+      '<span class="panel-icon">' + App.icon('review', 18) + '</span>' +
+      '<div><div class="panel-title">Log audit</div>' +
+      '<div class="panel-sub">15 tindakan terkini dalam sistem</div></div></div>' +
+      '<div class="card-pad" id="auditList">' + App.skeleton(3) + '</div>';
+
+    App.call('audit.list', { filters: {}, page: 1, pageSize: 15 }).then(function (result) {
+      var list = card.querySelector('#auditList');
+      if (!result.items.length) {
+        list.innerHTML = '<p class="small muted" style="margin:0">Tiada log.</p>';
+        return;
+      }
+      list.innerHTML = '<div class="table-wrap"><table><thead><tr>' +
+        '<th>Masa</th><th>Pengguna</th><th>Tindakan</th><th>Butiran</th>' +
+        '</tr></thead><tbody>' + result.items.map(function (a) {
+          return '<tr><td class="cell-sub" style="white-space:nowrap">' +
+            App.esc(a.timestamp) + '</td>' +
+            '<td class="cell-sub">' + App.esc(a.userName) + '</td>' +
+            '<td class="cell-sub">' + App.esc(a.action) + '</td>' +
+            '<td class="cell-sub">' + App.esc(a.description) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }).catch(function () {
+      card.querySelector('#auditList').innerHTML =
+        '<p class="small muted" style="margin:0">Log audit tidak tersedia.</p>';
+    });
+  }
+};
+</script>

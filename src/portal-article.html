@@ -1,0 +1,222 @@
+<script>
+/* portal-article.html — paparan bacaan penuh untuk berita yang diterbitkan.
+   Hanya memanggil portal.article, yang menolak apa-apa yang belum diterbitkan
+   dan tidak sekali-kali mengembalikan komen semakan atau nama penyemak. */
+
+App.views['portal-article'] = {
+
+  title: function () { return 'Berita'; },
+
+  render: function (container, params) {
+    var self = this;
+    var newsId = params && params.newsId;
+
+    if (!newsId) {
+      container.innerHTML = App.emptyState('Berita tidak dinyatakan',
+        'Pilih satu berita dari laman utama.');
+      return Promise.resolve();
+    }
+
+    return App.call('portal.article', { newsId: newsId, countView: true })
+      .then(function (a) {
+        App.el('pageTitle').textContent = a.title;
+        container.innerHTML = self.layout(a);
+        self.bind(container, a);
+      });
+  },
+
+  layout: function (a) {
+    var meta = App.views['portal'].metaItem;
+
+    var hero = a.imageUrl
+      ? '<figure class="read-hero"><img src="' + App.esc(a.imageUrl) + '" alt=""></figure>'
+      : '';
+
+    var gallery = (a.images && a.images.length > 1)
+      ? '<section class="card section"><div class="card-head"><h2>Galeri</h2>' +
+        '<span class="spacer"></span><span class="small muted">' + a.images.length +
+        ' gambar</span></div><div class="card-pad"><div class="gallery">' +
+        a.images.map(function (img) {
+          return '<figure class="thumb" style="margin:0">' +
+            '<img src="' + App.esc(img.thumbUrl) + '" alt="' +
+            App.esc(img.altText || img.caption || '') + '" loading="lazy">' +
+            (img.caption ? '<figcaption class="thumb-body small muted">' +
+              App.esc(img.caption) + '</figcaption>' : '') + '</figure>';
+        }).join('') + '</div></div></section>'
+      : '';
+
+    var related = (a.related && a.related.length)
+      ? '<section class="portal-section"><div class="section-head">' +
+        '<h2 class="section-title">Berita Berkaitan</h2></div><div class="news-grid">' +
+        a.related.map(function (r) {
+          var image = r.imageUrl
+            ? '<img src="' + App.esc(r.imageUrl) + '" alt="" loading="lazy">'
+            : '<div class="news-card-blank" aria-hidden="true"></div>';
+          return '<article class="news-card" data-read="' + App.esc(r.newsId) + '" ' +
+            'tabindex="0" role="button">' +
+            '<div class="news-card-media">' + image +
+            '<span class="news-card-cat">' + App.esc(r.categoryName) + '</span></div>' +
+            '<div class="news-card-body"><h3 class="news-card-title">' +
+            App.esc(r.title) + '</h3>' +
+            '<div class="meta-row">' + meta('calendar', r.publishedAt) + '</div>' +
+            '</div></article>';
+        }).join('') + '</div></section>'
+      : '';
+
+    return '<article class="read-wrap">' +
+      '<button class="link-more back" id="backBtn">' +
+        '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
+        '<path d="M19 12H6M12.5 5.5 6 12l6.5 6.5" stroke="currentColor" stroke-width="2" ' +
+        'fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        'Kembali ke laman berita</button>' +
+
+      '<span class="read-cat">' + App.esc(a.categoryName) + '</span>' +
+      '<h1 class="read-title">' + App.esc(a.title) + '</h1>' +
+      '<div class="meta-row read-meta">' +
+        meta('calendar', a.publishedAt) +
+        meta('eye', a.views + ' tontonan') +
+        meta('clock', a.readMinutes + ' minit baca') +
+      '</div>' +
+      '<p class="read-byline">Oleh ' + App.esc(a.authorName) + '</p>' +
+
+      this.shareRow(a) +
+
+      hero +
+      (a.summary ? '<p class="read-lead">' + App.esc(a.summary) + '</p>' : '') +
+      '<div class="article-body read-body">' + (a.content || '') + '</div>' +
+      (a.tags ? '<div class="read-tags">' + String(a.tags).split(',')
+        .filter(function (t) { return t.trim(); })
+        .map(function (t) { return '<span class="tag-chip">' + App.esc(t.trim()) + '</span>'; })
+        .join('') + '</div>' : '') +
+      '</article>' + gallery + related;
+  },
+
+  /**
+   * Butang kongsi.
+   *
+   * Setiap platform menerima URL dan tajuk melalui parameter pertanyaan —
+   * tiada SDK, tiada skrip pihak ketiga, tiada penjejakan. Ini penting:
+   * memuatkan skrip Facebook atau X ke dalam sistem dalaman fakulti akan
+   * menghantar data pelawat kepada mereka pada setiap muka surat.
+   */
+  shareRow: function (a) {
+    if (!App.state.settings.SHARE_ENABLED) return '';
+    if (!a.shareUrl) return '';
+
+    var platforms = [
+      { key: 'facebook', label: 'Facebook', brand: '#1877F2',
+        path: '<path d="M14 8.5h2.5V5.2H14c-2.3 0-3.8 1.5-3.8 3.8v1.8H8v3.3h2.2V21h3.3v-6.9h2.4l.4-3.3h-2.8V9.4c0-.6.2-.9.5-.9Z"/>' },
+      { key: 'x', label: 'X', brand: '#0F1419',
+        path: '<path d="M4 4h3.8l4.3 5.9L17.3 4H21l-6.6 7.7L21.4 20h-3.8l-4.6-6.3L7.2 20H3.6l7-8.1Z"/>' },
+      { key: 'linkedin', label: 'LinkedIn', brand: '#0A66C2',
+        path: '<path d="M5.5 4.2a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6ZM4 9.4h3v10.4H4Zm5.5 0h2.9v1.4c.5-.9 1.6-1.6 3-1.6 2.6 0 3.6 1.6 3.6 4.3v6.3h-3v-5.6c0-1.4-.5-2.2-1.7-2.2-1 0-1.7.7-1.7 2.2v5.6h-3Z"/>' },
+      { key: 'whatsapp', label: 'WhatsApp', brand: '#25D366',
+        path: '<path d="M12 3.5a8.4 8.4 0 0 0-7.2 12.7L3.5 20.5l4.4-1.2A8.4 8.4 0 1 0 12 3.5Zm4.6 11.8c-.2.6-1.1 1.1-1.6 1.1-.4 0-.9.1-3-.8-2.5-1.1-4.1-3.7-4.2-3.9-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2 0 .4-.1.5l-.3.4c-.1.2-.3.3-.1.6.1.3.7 1.2 1.5 1.9 1 .9 1.8 1.1 2 1.2.3.1.4.1.6-.1l.8-1c.2-.2.4-.2.6-.1l1.8.9c.2.1.4.2.4.3.1.2.1.6 0 .9Z"/>' },
+      { key: 'email', label: 'E-mel', brand: '#5C6B7F',
+        path: '<path d="M3.5 5.5h17v13h-17Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="m3.5 6.5 8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="2"/>' }
+    ];
+
+    var buttons = platforms.map(function (p) {
+      return '<button class="share-btn" data-share="' + p.key + '" ' +
+        'style="--brand:' + p.brand + '" aria-label="Kongsi ke ' + App.esc(p.label) + '" ' +
+        'title="Kongsi ke ' + App.esc(p.label) + '">' +
+        '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" ' +
+        'aria-hidden="true">' + p.path + '</svg></button>';
+    }).join('');
+
+    var warning = a.shareIsPublic ? '' :
+      '<span class="share-note">Pautan ini hanya boleh dibuka oleh warga UTM.</span>';
+
+    /*
+     * Pautan dipaparkan sebagai teks kerana bar alamat pelayar tidak berubah
+     * antara berita — aplikasi berjalan dalam iframe Apps Script. Tanpa ini,
+     * pengguna menyalin URL aplikasi dan menyangka ia pautan berita.
+     */
+    return '<div class="share-row">' +
+      '<span class="share-label">Kongsi</span>' + buttons +
+      '<button class="share-btn share-copy" data-share="copy" ' +
+      'aria-label="Salin pautan" title="Salin pautan">' +
+      App.icon('news', 16) + '</button>' + warning +
+      '</div>';
+  },
+
+  openShare: function (key, a) {
+    var url = encodeURIComponent(a.shareUrl);
+    var title = encodeURIComponent(a.title);
+    var summary = encodeURIComponent(a.summary || a.title);
+
+    var targets = {
+      facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url,
+      x: 'https://twitter.com/intent/tweet?url=' + url + '&text=' + title,
+      linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=' + url,
+      whatsapp: 'https://api.whatsapp.com/send?text=' + title + '%20' + url,
+      email: 'mailto:?subject=' + title + '&body=' + summary + '%0A%0A' + url
+    };
+
+    var target = targets[key];
+    if (!target) return;
+
+    // Web app berjalan dalam iframe berkotak pasir; window.open dengan
+    // noopener ialah satu-satunya cara yang boleh dipercayai untuk keluar.
+    var win = window.open(target, '_blank', 'noopener,noreferrer,width=640,height=560');
+    if (!win) {
+      App.toast('Pelayar menyekat tetingkap baharu. Benarkan pop-up untuk laman ini.', 'warning');
+    }
+  },
+
+  copyLink: function (a) {
+    function done() { App.toast('Pautan berita disalin.', 'success'); }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(a.shareUrl).then(done).catch(function () {
+        App.views['portal-article'].copyFallback(a, done);
+      });
+      return;
+    }
+    this.copyFallback(a, done);
+  },
+
+  /** Kaedah lama, untuk pelayar atau iframe yang menyekat Clipboard API */
+  copyFallback: function (a, done) {
+    var box = document.createElement('textarea');
+    box.value = a.shareUrl;
+    box.setAttribute('readonly', '');
+    box.style.position = 'fixed';
+    box.style.opacity = '0';
+    document.body.appendChild(box);
+    box.select();
+
+    try {
+      document.execCommand('copy');
+      done();
+    } catch (e) {
+      App.toast('Salin pautan ini secara manual: ' + a.shareUrl, 'warning');
+    }
+    document.body.removeChild(box);
+  },
+
+  bind: function (container, a) {
+    var self = this;
+
+    container.querySelector('#backBtn').addEventListener('click', function () {
+      App.navigate('portal');
+    });
+
+    container.querySelectorAll('[data-share]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.dataset.share;
+        if (key === 'copy') self.copyLink(a);
+        else self.openShare(key, a);
+      });
+    });
+
+    container.querySelectorAll('[data-read]').forEach(function (node) {
+      function go() { App.navigate('portal-article', { newsId: node.dataset.read }); }
+      node.addEventListener('click', go);
+      node.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+      });
+    });
+  }
+};
+</script>

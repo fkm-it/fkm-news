@@ -1,0 +1,78 @@
+<script>
+/* review.html — giliran semakan untuk Admin dan Editor.
+   Menggunakan skop 'queue' di server: server yang menentukan status mana
+   yang tergolong dalam giliran peranan tersebut. */
+
+App.views['review'] = {
+
+  page: 1,
+
+  title: function () {
+    return App.state.settings.LABEL_REVIEW_QUEUE || 'Giliran Semakan';
+  },
+
+  render: function (container) {
+    var self = this;
+    container.innerHTML =
+      '<section class="card section">' +
+        '<div class="panel-head">' +
+        '<span class="panel-icon">' + App.icon('review', 18) + '</span>' +
+        '<div><div class="panel-title">' + App.esc(self.title()) + '</div>' +
+        '<div class="panel-sub">' +
+          (App.state.user.role === 'ADMIN'
+            ? 'Berita yang menunggu semakan format, ejaan dan struktur sebelum diteruskan kepada Editor.'
+            : 'Berita yang telah disemak Admin dan menunggu keputusan penerbitan anda.') +
+        '</div></div></div>' +
+      '</section>' +
+      '<section class="card" id="queueCard"></section>';
+
+    return self.load(container);
+  },
+
+  load: function (container) {
+    var self = this;
+    var card = container.querySelector('#queueCard');
+    card.innerHTML = '<div class="card-pad skeleton-stack">' +
+      '<div class="skeleton skeleton-row"></div>'.repeat(4) + '</div>';
+
+    return App.call('news.list', {
+      filters: { scope: 'queue' },
+      page: self.page,
+      pageSize: App.state.settings.PAGE_SIZE
+    }).then(function (result) {
+      if (!result.items.length) {
+        card.innerHTML = App.emptyState('Giliran anda kosong',
+          'Tiada berita menunggu keputusan anda buat masa ini. Berita baharu akan muncul di sini secara automatik.',
+          '', 'review');
+        return;
+      }
+
+      var rows = result.items.map(function (n) {
+        return '<tr class="clickable" data-news="' + App.esc(n.newsId) + '">' +
+          '<td data-label="Tajuk"><div class="cell-title">' + App.esc(n.title) + '</div>' +
+          '<div class="cell-sub">' + App.esc(n.summary) + '</div></td>' +
+          '<td data-label="Penulis">' + App.esc(n.authorName) + '</td>' +
+          '<td data-label="Status">' + App.statusPill(n.statusLabel, n.statusColor) + '</td>' +
+          '<td data-label="Dihantar" class="cell-sub">' +
+          App.esc(n.submittedAt || n.updatedAt) + '</td>' +
+          '<td><span class="row-actions"><button class="btn btn-sm" data-review="' +
+          App.esc(n.newsId) + '">Semak</button></span></td></tr>';
+      }).join('');
+
+      var p = App.pager(result, function (page) { self.page = page; self.load(container); });
+
+      card.innerHTML = '<div class="table-wrap"><table class="stacked"><thead><tr>' +
+        '<th>Tajuk</th><th>Penulis</th><th>Status</th><th>Dihantar</th><th></th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' + p.html;
+
+      p.bind(card);
+
+      card.querySelectorAll('[data-news]').forEach(function (tr) {
+        tr.addEventListener('click', function () {
+          App.navigate('news-detail', { newsId: tr.dataset.news });
+        });
+      });
+    });
+  }
+};
+</script>

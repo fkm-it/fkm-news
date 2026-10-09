@@ -1,0 +1,267 @@
+<script>
+/* news-detail.html — paparan penuh satu artikel:
+   kandungan, galeri, tindakan workflow, sejarah versi, sejarah semakan,
+   jejak audit dan penerbitan media sosial. */
+
+App.views['news-detail'] = {
+
+  news: null,
+
+  title: function () { return 'Butiran berita'; },
+
+  render: function (container, params) {
+    var self = this;
+    var newsId = params && params.newsId;
+    if (!newsId) {
+      container.innerHTML = App.emptyState('Berita tidak dinyatakan', 'Pilih berita dari senarai.');
+      return Promise.resolve();
+    }
+
+    return App.call('news.detail', { newsId: newsId }).then(function (news) {
+      self.news = news;
+      App.el('pageTitle').textContent = news.title;
+      container.innerHTML = self.layout(news);
+      self.bind(container, news);
+    });
+  },
+
+  layout: function (n) {
+    return '' +
+      this.headerCard(n) +
+      '<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(260px,1fr)">' +
+        '<div>' + this.articleCard(n) + this.galleryCard(n) + '</div>' +
+        '<div>' + this.metaCard(n) + this.reviewCard(n) +
+          this.versionCard(n) + this.timelineCard(n) + '</div>' +
+      '</div>';
+  },
+
+  headerCard: function (n) {
+    var actions = n.availableActions.map(function (a) {
+      return '<button class="btn btn-' + a.tone + '" data-action="' + App.esc(a.action) +
+        '" data-comment="' + (a.requireComment ? '1' : '0') +
+        '" data-label="' + App.esc(a.label) + '">' + App.esc(a.label) + '</button>';
+    }).join('');
+
+    var edit = n.canEdit
+      ? '<button class="btn btn-ghost" id="editBtn">Sunting</button>' : '';
+
+    var social = (App.state.settings.SOCIAL_ENABLED && n.status === 'PUBLISHED')
+      ? '<button class="btn btn-accent" id="socialBtn">Hantar ke media sosial</button>' : '';
+
+    var reject = n.rejectReason
+      ? '<p class="small" style="margin:10px 0 0;color:var(--danger-color)">' +
+        'Sebab ditolak: ' + App.esc(n.rejectReason) + '</p>' : '';
+
+    return '<section class="card section card-pad">' +
+      '<div class="row" style="align-items:flex-start">' +
+        '<div style="flex:1;min-width:220px">' +
+          '<div class="row" style="gap:8px;margin-bottom:6px">' +
+            App.statusPill(n.statusLabel, n.statusColor) +
+            '<span class="small muted">' + App.esc(n.newsId) + ' · versi ' +
+            n.currentVersion + '</span>' +
+          '</div>' +
+          '<h2 style="font-size:1.3rem;line-height:1.3">' + App.esc(n.title) + '</h2>' +
+          '<p class="small muted" style="margin:6px 0 0">' +
+            App.esc(n.authorName) + ' · ' + App.esc(n.categoryName) +
+            (n.eventDate ? ' · ' + App.esc(n.eventDate) : '') +
+          '</p>' + reject +
+        '</div>' +
+      '</div>' +
+      '<div class="row" style="margin-top:16px">' +
+        '<button class="btn btn-ghost" id="backBtn">Kembali</button>' + edit +
+        '<span class="spacer"></span>' + social + actions +
+      '</div></section>';
+  },
+
+  articleCard: function (n) {
+    var hero = n.featuredImageUrl
+      ? '<img class="article-hero" src="' + App.esc(n.featuredImageUrl) + '" alt="">' : '';
+
+    return '<section class="card section card-pad">' + hero +
+      (n.summary ? '<p style="font-size:1rem;font-weight:500;line-height:1.6;margin:' +
+        (hero ? '16px' : '0') + ' 0 14px">' + App.esc(n.summary) + '</p>' : '') +
+      '<div class="article-body">' + (n.content || '<p class="muted">Tiada kandungan.</p>') +
+      '</div>' +
+      (n.tags ? '<p class="small muted" style="margin-top:16px">Kata kunci: ' +
+        App.esc(n.tags) + '</p>' : '') +
+      '</section>';
+  },
+
+  galleryCard: function (n) {
+    if (!n.images || !n.images.length) return '';
+    var items = n.images.map(function (img) {
+      return '<figure class="thumb" style="margin:0">' +
+        '<img src="' + App.esc(img.thumbUrl) + '" alt="' +
+        App.esc(img.altText || img.caption || img.fileName) + '">' +
+        (img.caption ? '<figcaption class="thumb-body small muted">' +
+          App.esc(img.caption) + '</figcaption>' : '') +
+        '</figure>';
+    }).join('');
+
+    return '<section class="card section">' +
+      '<div class="card-head"><h2>Galeri</h2><span class="spacer"></span>' +
+      '<span class="small muted">' + n.images.length + ' gambar</span></div>' +
+      '<div class="card-pad"><div class="gallery">' + items + '</div></div></section>';
+  },
+
+  metaCard: function (n) {
+    function row(label, value) {
+      if (!value) return '';
+      return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;' +
+        'border-bottom:1px solid var(--border-color)">' +
+        '<span class="small muted">' + App.esc(label) + '</span>' +
+        '<span class="small" style="text-align:right">' + App.esc(value) + '</span></div>';
+    }
+    return '<section class="card section"><div class="card-head"><h2>Maklumat</h2></div>' +
+      '<div class="card-pad">' +
+        row('Dicipta', n.createdAt) +
+        row('Dihantar', n.submittedAt) +
+        row('Semakan Admin', n.adminReviewedBy ?
+          n.adminReviewedBy + ' · ' + n.adminReviewedAt : '') +
+        row('Semakan Editor', n.editorReviewedBy ?
+          n.editorReviewedBy + ' · ' + n.editorReviewedAt : '') +
+        row('Diterbitkan', n.publishedAt) +
+        row('Kemas kini', n.updatedAt) +
+      '</div></section>';
+  },
+
+  reviewCard: function (n) {
+    if (!n.reviews || !n.reviews.length) return '';
+    var items = n.reviews.map(function (r) {
+      return '<div class="timeline-item">' +
+        '<div class="timeline-dot" style="background:var(--secondary-color)"></div>' +
+        '<div><div class="timeline-body"><strong>' + App.esc(r.decisionLabel) + '</strong>' +
+        (r.comments ? '<br>' + App.esc(r.comments) : '') + '</div>' +
+        '<div class="timeline-meta">' + App.esc(r.reviewerName) + ' · ' +
+        App.esc(r.createdAt) + '</div></div></div>';
+    }).join('');
+
+    return '<section class="card section"><div class="card-head"><h2>Sejarah semakan</h2></div>' +
+      '<div class="card-pad"><div class="timeline">' + items + '</div></div></section>';
+  },
+
+  versionCard: function (n) {
+    if (!n.versions || !n.versions.length) return '';
+    var items = n.versions.map(function (v) {
+      return '<div style="padding:9px 0;border-bottom:1px solid var(--border-color)">' +
+        '<div class="row" style="gap:8px">' +
+        '<strong class="small">Versi ' + v.versionNumber + '</strong>' +
+        '<span class="spacer"></span>' +
+        '<button class="btn btn-ghost btn-sm" data-version="' + App.esc(v.versionId) +
+        '">Lihat</button></div>' +
+        '<div class="small muted">' + App.esc(v.submittedBy) + ' · ' +
+        App.esc(v.submissionDate) + '</div></div>';
+    }).join('');
+
+    return '<section class="card section"><div class="card-head"><h2>Sejarah versi</h2></div>' +
+      '<div class="card-pad">' + items + '</div></section>';
+  },
+
+  timelineCard: function (n) {
+    if (!App.state.settings.FEATURE_AUDIT_UI || !n.timeline || !n.timeline.length) return '';
+    var items = n.timeline.slice(0, 12).map(function (t) {
+      return '<div class="timeline-item"><div class="timeline-dot"></div>' +
+        '<div><div class="timeline-body">' + App.esc(t.description || t.action) + '</div>' +
+        '<div class="timeline-meta">' + App.esc(t.userName) + ' · ' +
+        App.esc(t.timestamp) + '</div></div></div>';
+    }).join('');
+
+    return '<section class="card section"><div class="card-head"><h2>Jejak aktiviti</h2></div>' +
+      '<div class="card-pad"><div class="timeline">' + items + '</div></div></section>';
+  },
+
+  /* ------------------------------------------------------------- Binding */
+
+  bind: function (container, n) {
+    var self = this;
+
+    container.querySelector('#backBtn').addEventListener('click', function () {
+      App.navigate('news-list');
+    });
+
+    var editBtn = container.querySelector('#editBtn');
+    if (editBtn) editBtn.addEventListener('click', function () {
+      App.navigate('news-form', { newsId: n.newsId });
+    });
+
+    var socialBtn = container.querySelector('#socialBtn');
+    if (socialBtn) socialBtn.addEventListener('click', function () {
+      App.views['social'].openComposer(n.newsId, function () {
+        App.navigate('news-detail', { newsId: n.newsId });
+      });
+    });
+
+    container.querySelectorAll('[data-action]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        self.runAction(n, btn.dataset.action, btn.dataset.label,
+          btn.dataset.comment === '1');
+      });
+    });
+
+    container.querySelectorAll('[data-version]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var version = n.versions.filter(function (v) {
+          return v.versionId === btn.dataset.version;
+        })[0];
+        if (!version) return;
+        App.openModal({
+          title: 'Versi ' + version.versionNumber,
+          wide: true,
+          body: '<p class="small muted">' + App.esc(version.submittedBy) + ' · ' +
+            App.esc(version.submissionDate) + '</p>' +
+            '<h3 style="margin:10px 0">' + App.esc(version.title) + '</h3>' +
+            (version.summary ? '<p>' + App.esc(version.summary) + '</p>' : '') +
+            '<div class="article-body">' + version.content + '</div>',
+          buttons: [{ label: 'Tutup', className: 'btn-ghost', onClick: App.closeModal }]
+        });
+      });
+    });
+  },
+
+  runAction: function (n, action, label, requireComment) {
+    var self = this;
+
+    function execute(comments) {
+      App.call('workflow.transition', {
+        newsId: n.newsId, action: action, comments: comments
+      }).then(function (res) {
+        App.closeModal();
+        App.toast(label + ' — status kini: ' + res.statusLabel, 'success');
+        if (res.social && res.social.results) {
+          res.social.results.forEach(function (r) {
+            App.toast(r.platform + (r.ok ? ': dihantar.' : ': gagal — ' + r.message),
+              r.ok ? 'success' : 'error');
+          });
+        }
+        App.navigate('news-detail', { newsId: n.newsId });
+      }).catch(App.fail);
+    }
+
+    if (!requireComment) {
+      App.confirmModal(label, 'Sahkan tindakan "' + label + '" untuk berita ini.',
+        label, 'primary').then(function (yes) { if (yes) execute(''); });
+      return;
+    }
+
+    App.openModal({
+      title: label,
+      body: '<div class="field"><label for="cmt">Catatan untuk penulis</label>' +
+        '<textarea id="cmt" placeholder="Nyatakan sebab atau cadangan pembetulan dengan jelas."></textarea>' +
+        '<span class="help">Catatan ini dihantar kepada penulis melalui notifikasi dan e-mel.</span>' +
+        '</div>',
+      buttons: [
+        { label: 'Batal', className: 'btn-ghost', onClick: App.closeModal },
+        { label: label, className: 'btn-warning', onClick: function (btn) {
+            var value = App.el('modalBody').querySelector('#cmt').value.trim();
+            if (value.length < 10) {
+              App.toast('Catatan terlalu ringkas — sekurang-kurangnya 10 aksara.', 'warning');
+              return;
+            }
+            btn.disabled = true;
+            execute(value);
+          } }
+      ]
+    });
+  }
+};
+</script>

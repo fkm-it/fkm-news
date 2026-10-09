@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FKM News</title>
+  <?!= include('css'); ?>
+
+  <style>
+  /* ==========================================================================
+     Rail sisi halaman utama awam.
+
+     Grid, bukan flex: lebar lajur sisi kekal tetap manakala lajur utama
+     mengecut, dan ia bertindan pada skrin kecil tanpa mengubah markup.
+     Semua warna datang daripada token tema Global Settings — tiada nilai
+     warna ditulis terus di sini.
+     ======================================================================== */
+
+  .home-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 312px;
+    gap: 22px;
+    align-items: start;
+  }
+  @media (max-width: 960px) {
+    .home-split { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  .rail-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .rail-card h3 {
+    margin: 0 0 12px;
+    font-size: .875rem;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+
+  .rail-greeting { padding: 0; overflow: hidden; }
+  .rail-greeting img {
+    width: 100%; display: block;
+    aspect-ratio: 4 / 5; object-fit: cover;
+  }
+  .rail-greeting-cap {
+    padding: 11px 14px;
+    font-size: .8125rem; font-weight: 600;
+    color: var(--text-color);
+  }
+
+  .trend-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 9px;
+    font-size: .75rem; color: var(--muted-color);
+  }
+  .trend-label { width: 48px; flex-shrink: 0; }
+  .trend-track {
+    flex: 1; height: 8px; border-radius: 999px;
+    background: var(--background-color); overflow: hidden;
+  }
+  .trend-fill {
+    display: block; height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+  }
+  .trend-count {
+    width: 22px; text-align: right;
+    font-weight: 600; color: var(--text-color);
+  }
+
+  .rail-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .rail-link {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 11px 4px; border-radius: 10px;
+    background: var(--background-color);
+    border: 1px solid transparent;
+    color: var(--text-color); text-decoration: none;
+    font-size: .6875rem; text-align: center; line-height: 1.25;
+  }
+  .rail-link:hover { border-color: var(--primary-color); }
+  .rail-link svg { color: var(--primary-color); }
+
+  .wx-now { display: flex; align-items: center; justify-content: space-between; }
+  .wx-temp { font-size: 1.875rem; font-weight: 700; color: var(--text-color); line-height: 1.1; }
+  .wx-loc { font-size: .75rem; color: var(--muted-color); }
+  .wx-today { font-size: .6875rem; color: var(--muted-color); margin-top: 2px; }
+
+  .wx-tabs {
+    display: flex; gap: 4px;
+    margin: 14px 0 10px;
+    padding: 3px;
+    background: var(--background-color);
+    border-radius: 999px;
+  }
+  .wx-tab {
+    flex: 1; padding: 5px 4px;
+    border: 0; border-radius: 999px;
+    background: transparent; color: var(--muted-color);
+    font: inherit; font-size: .6875rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .wx-tab[aria-selected="true"] {
+    background: var(--surface-color);
+    color: var(--text-color);
+  }
+
+  /* Senarai menegak: tarikh muat tanpa mampatan, dan 16 baris boleh
+     diskrol tanpa memanjangkan rail. */
+  .wx-list { max-height: 268px; overflow-y: auto; }
+  .wx-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 2px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: .75rem;
+  }
+  .wx-row:last-child { border-bottom: 0; }
+  .wx-row-when { flex: 1; min-width: 0; color: var(--text-color); }
+  .wx-row-when small { display: block; color: var(--muted-color); font-size: .6875rem; }
+  .wx-row-icon { font-size: 1.125rem; line-height: 1; }
+  .wx-row-temp { width: 62px; text-align: right; white-space: nowrap; color: var(--muted-color); }
+  .wx-row-temp b { color: var(--text-color); font-weight: 600; }
+  .wx-row.is-now .wx-row-when { font-weight: 600; }
+
+  /* ---- Penukar bahasa ---- */
+  .lang-switch {
+    display: inline-flex;
+    padding: 3px;
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .lang-btn {
+    padding: 4px 11px;
+    border: 0; border-radius: 999px;
+    background: transparent; color: var(--muted-color);
+    font: inherit; font-size: .75rem; font-weight: 700;
+    letter-spacing: .02em; cursor: pointer;
+  }
+  .lang-btn[aria-pressed="true"] {
+    background: var(--primary-color);
+    color: #fff;
+  }
+  .lang-btn:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+
+  /* Penukar kekal kelihatan pada mobile; carian yang mengalah dahulu,
+     kerana ia boleh dicapai semula dengan menatal, bahasa tidak. */
+  @media (max-width: 560px) {
+    .pub-search { display: none; }
+  }
+
+  /* ---- Penunjuk kandungan berundur ---- */
+  .lang-notice {
+    display: flex; align-items: center; gap: 7px;
+    margin: 0 0 16px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    background: var(--background-color);
+    border: 1px solid var(--border-color);
+    font-size: .75rem; color: var(--muted-color);
+  }
+  .lang-notice svg { flex-shrink: 0; color: var(--accent-color); }
+
+  /* ---- Lihat semua / Muat lagi ---- */
+  .list-more { display: flex; justify-content: center; margin-top: 22px; }
+  .more-btn {
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--surface-color);
+    color: var(--text-color);
+    font: inherit; font-size: .8125rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .more-btn:hover { border-color: var(--primary-color); color: var(--primary-color); }
+  .more-btn:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+  .more-btn[disabled] { opacity: .6; cursor: default; }
+  </style>
+</head>
+<body>
+
+  <div id="boot" class="boot">
+    <div class="boot-mark" aria-hidden="true"></div>
+    <p class="boot-text" id="bootText">Memuatkan…</p>
+  </div>
+
+  <div id="site" hidden>
+    <header class="pub-header">
+      <div class="pub-header-inner">
+        <button class="pub-brand" id="brandBtn">
+          <span class="brand-mark" id="brandMark"></span>
+          <span class="brand-text">
+            <span class="brand-name" id="brandName"></span>
+            <span class="brand-sub" id="brandSub"></span>
+          </span>
+        </button>
+
+        <div class="pub-search">
+          <input type="search" id="pubSearch" placeholder="Cari berita…"
+                 aria-label="Cari berita">
+        </div>
+
+        <div class="lang-switch" id="langSwitch" role="group">
+          <button class="lang-btn" data-lang="bm" aria-pressed="true">BM</button>
+          <button class="lang-btn" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+
+        <button class="icon-btn" id="pubTheme" aria-label="Tukar mod paparan">
+          <svg class="icon-sun" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8" fill="none"/>
+            <path d="M12 2.6v2.2M12 19.2v2.2M4.2 12H2M22 12h-2.2M6.3 6.3 4.8 4.8M19.2 19.2l-1.5-1.5M17.7 6.3l1.5-1.5M4.8 19.2l1.5-1.5"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
+            <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2Z"
+                  stroke="currentColor" stroke-width="1.8" fill="none"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="content" id="view" tabindex="-1"></main>
+
+    <footer class="pub-footer">
+      <span id="footerText"></span>
+      <span id="footerOrg"></span>
+    </footer>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script>
+  /* ==========================================================================
+     Halaman pembaca awam.
+
+     Fail ini sengaja berdiri sendiri dan TIDAK memuatkan js-core atau
+     mana-mana paparan pengurusan. Ia memanggil publicApi() sahaja, yang
+     hanya mengetahui tiga tindakan bacaan, serta publicSidebar() untuk
+     panel sisi — juga bacaan semata-mata. Tiada kod pengurusan dihantar
+     kepada pelayar pelawat awam.
+     ======================================================================== */
+
+  var Pub = (function () {
+
+    /*
+     * lastList menyimpan penapis senarai terakhir yang dilihat pembaca.
+     * Ia membolehkan butang kembali pada halaman artikel memulangkan
+     * mereka ke tempat asal — kategori atau hasil carian — dan bukan
+     * mencampakkan mereka ke laman utama.
+     */
+    var state = {
+      settings: {}, categories: [], page: 'home', mode: 'light',
+      lastList: null,
+      listPage: 1,      // halaman terakhir yang dimuatkan dalam grid semasa
+      nav: 0,           // bertambah setiap kali halaman bertukar
+      catCounts: null,  // kiraan berita setiap kategori, dari muatan laman utama
+      lang: 'bm',
+      dicts: {},        // kedua-dua kamus, diterima sekali pada bootstrap
+      currentId: null   // artikel yang sedang dibaca, untuk kekal padanya
+    };
+
+    /*
+     * Penterjemah sisi klien.
+     *
+     * Kunci yang tiada dipulangkan sebagai kunci itu sendiri. Label ganjil
+     * seperti "readMoreX" di skrin jauh lebih cepat disedari daripada ruang
+     * kosong yang senyap.
+     */
+    function t(key) {
+      var d = state.dicts[state.lang] || state.dicts.bm || {};
+      if (Object.prototype.hasOwnProperty.call(d, key)) return d[key];
+      var bm = state.dicts.bm || {};
+      return Object.prototype.hasOwnProperty.call(bm, key) ? bm[key] : key;
+    }
+
+    function el(id) { return document.getElementById(id); }
+
+    function esc(t) {
+      return String(t === null || t === undefined ? '' : t)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function call(action, payload) {
+      return new Promise(function (resolve, reject) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res) return reject(new Error('Tiada respons.'));
+            if (res.ok) return resolve(res.data);
+            reject(new Error(res.error.message));
+          })
+          .withFailureHandler(function (e) {
+            reject(new Error(e && e.message ? e.message : 'Sambungan terputus.'));
+          })
+          .publicApi(action, withLang_(payload));
+      });
+    }
+
+    /* Bahasa disisipkan di satu tempat sahaja, supaya tiada laluan
+       terlepas menghantarnya. */
+    function withLang_(payload) {
+      var p = {};
+      Object.keys(payload || {}).forEach(function (k) { p[k] = payload[k]; });
+      p.lang = state.lang;
+      return p;
+    }
+
+    /*
+     * Panel sisi mempunyai titik masuknya sendiri kerana ia bebas daripada
+     * kandungan berita: kegagalannya tidak boleh mengosongkan halaman.
+     * Ia dipanggil serentak dengan public.home, jadi tiada kelewatan
+     * tambahan yang dirasai pengguna.
+     */
+    function callSidebar() {
+      return new Promise(function (resolve) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            resolve(res && res.ok ? res.data : null);
+          })
+          .withFailureHandler(function () { resolve(null); })
+          .publicSidebar(state.lang);
+      });
+    }
+
+    function toast(msg, kind) {
+      var n = document.createElement('div');
+      n.className = 'toast ' + (kind || 'info');
+      n.textContent = msg;
+      el('toasts').appendChild(n);
+      setTimeout(function () { n.remove(); }, 4000);
+    }
+
+    function debounce(fn, wait) {
+      var t;
+      return function () {
+        var a = arguments, c = this;
+        clearTimeout(t);
+        t = setTimeout(function () { fn.apply(c, a); }, wait || 320);
+      };
+    }
+
+    function meta(icon, text) {
+      var paths = {
+        calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>',
+        eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+        clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/>'
+      };
+      return '<span class="meta-item"><svg viewBox="0 0 24 24" width="13" height="13" ' +
+        'fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" ' +
+        'stroke-linejoin="round" aria-hidden="true">' + paths[icon] + '</svg>' +
+        esc(text) + '</span>';
+    }
+
+    /* ---------------------------------------------------------------- Tema */
+
+    function applyTheme() {
+      var s = state.settings;
+      var dark = state.mode === 'dark';
+      var root = document.documentElement;
+      root.setAttribute('data-theme', dark ? 'dark' : 'light');
+      root.setAttribute('data-glass', s.GLASS_ENABLED ? 'on' : 'off');
+      root.setAttribute('data-elevation', s.ELEVATION || 'soft');
+
+      var t = dark ? {
+        '--primary-color': s.DARK_PRIMARY_COLOR, '--secondary-color': s.DARK_SECONDARY_COLOR,
+        '--accent-color': s.DARK_ACCENT_COLOR, '--background-color': s.DARK_BG_COLOR,
+        '--surface-color': s.DARK_SURFACE_COLOR, '--text-color': s.DARK_TEXT_COLOR,
+        '--muted-color': s.DARK_MUTED_COLOR, '--border-color': s.DARK_BORDER_COLOR,
+        '--sidebar-to': s.DARK_PRIMARY_COLOR
+      } : {
+        '--primary-color': s.PRIMARY_COLOR, '--secondary-color': s.SECONDARY_COLOR,
+        '--accent-color': s.ACCENT_COLOR, '--background-color': s.BG_COLOR,
+        '--surface-color': s.SURFACE_COLOR, '--text-color': s.TEXT_COLOR,
+        '--muted-color': s.MUTED_COLOR, '--border-color': s.BORDER_COLOR,
+        '--sidebar-to': s.SIDEBAR_GRADIENT_TO
+      };
+      t['--radius'] = s.BORDER_RADIUS;
+      t['--font-family'] = s.FONT_FAMILY;
+      t['--font-family-heading'] = s.FONT_FAMILY_HEADING;
+      t['--content-max-width'] = s.CONTENT_MAX_WIDTH;
+
+      Object.keys(t).forEach(function (k) {
+        if (t[k]) root.style.setProperty(k, t[k]);
+      });
+    }
+
+    /* ------------------------------------------------------------ Bahasa */
+
+    function applyLang() {
+      // Pembaca skrin perlu tahu bahasa kandungan yang sedang dipaparkan,
+      // bukan sekadar bahasa lalai dokumen.
+      document.documentElement.lang = state.lang === 'en' ? 'en' : 'ms';
+
+      document.querySelectorAll('[data-lang]').forEach(function (b) {
+        b.setAttribute('aria-pressed', b.dataset.lang === state.lang ? 'true' : 'false');
+      });
+
+      var s = state.settings;
+      document.title = s.SYSTEM_SHORT_NAME || t('siteName');
+      var box = el('pubSearch');
+      if (box) {
+        box.placeholder = t('search');
+        box.setAttribute('aria-label', t('search'));
+      }
+      var sw = el('langSwitch');
+      if (sw) sw.setAttribute('aria-label', t('language'));
+
+      var bt = el('bootText');
+      if (bt) bt.textContent = t('loading');
+    }
+
+    /*
+     * Menukar bahasa TIDAK memulangkan pembaca ke laman utama.
+     *
+     * Ini keperluan utama: seseorang yang membaca artikel di tengah
+     * halaman dan menekan EN mahu artikel yang sama dalam English, bukan
+     * dihantar semula ke muka depan. Halaman semasa dirender semula pada
+     * tempatnya — label bertukar serta-merta daripada kamus yang sudah ada,
+     * kandungan menyusul daripada pelayan.
+     */
+    function setLang(lang) {
+      if (lang !== 'bm' && lang !== 'en') return;
+      if (lang === state.lang) return;
+
+      state.lang = lang;
+      try { localStorage.setItem('FKMNEWS_PUB_LANG', lang); } catch (e) { }
+      applyLang();
+
+      if (state.page === 'article' && state.currentId) showArticle(state.currentId);
+      else if (state.page === 'list') showList(state.lastList || {});
+      else showHome();
+    }
+
+    function toggleTheme() {
+      state.mode = state.mode === 'dark' ? 'light' : 'dark';
+      try { localStorage.setItem('FKMNEWS_PUB_THEME', state.mode); } catch (e) { }
+      applyTheme();
+    }
+
+    /* -------------------------------------------------------------- Laman */
+
+    /*
+     * Penapis grid laman utama: tiada penapis, iaitu SEMUA berita.
+     * Objek tetap supaya bindMore() boleh membandingkannya.
+     */
+    var HOME_FILTER = {};
+
+    function showHome() {
+      state.page = 'home';
+      state.nav++;
+      state.lastList = null;
+      state.currentId = null;
+      state.listPage = 1;
+      el('view').innerHTML = skeleton();
+
+      /*
+       * Tiga permintaan serentak:
+       *   public.home  — hero, kiraan kategori
+       *   public.list  — grid: SEMUA berita, halaman pertama
+       *   publicSidebar — rail sisi
+       *
+       * Grid menggunakan public.list, bukan senarai "latest" daripada
+       * public.home, supaya laman utama dan butang "Muat lagi" berkongsi
+       * satu sumber dan satu urutan. Mencampurkan dua sumber berisiko
+       * mengulang atau melangkau berita di sempadan halaman.
+       *
+       * Panel sisi tidak menyekat berita: jika ia gagal, callSidebar()
+       * menyelesaikan dengan null dan halaman dirender satu lajur.
+       */
+      Promise.all([
+        call('public.home'),
+        call('public.list', listPayload(HOME_FILTER, 1)),
+        callSidebar()
+      ]).then(function (res) {
+        var data = res[0];
+        var list = res[1];
+        var sb = res[2];
+
+        if (!data.hero.length && !list.items.length) {
+          el('view').innerHTML = '<div class="card"><div class="empty">' +
+            '<h3>' + esc(t('noNewsYet')) + '</h3><p>' + esc(t('noNewsYetHint')) + '</p>' +
+            '</div></div>';
+          return;
+        }
+
+        // Kiraan disimpan supaya bar kategori pada halaman senarai boleh
+        // memaparkannya juga, tanpa permintaan tambahan ke pelayan.
+        state.catCounts = {};
+        (data.categories || []).forEach(function (c) {
+          state.catCounts[String(c.categoryId)] = c.count;
+        });
+
+        var rail = railHtml(sb);
+        var main = gridHtml(list.items) + moreHtml(list);
+
+        // "Semua" aktif secara lalai — grid di bawahnya memang semua berita.
+        el('view').innerHTML =
+          heroHtml(data) + categoryBar('') +
+          (rail
+            ? '<div class="home-split"><div>' + main + '</div>' + rail + '</div>'
+            : main);
+
+        bindCards();
+        bindHero(data);
+        bindMore(HOME_FILTER);
+        if (rail) loadWeather();
+      }).catch(function (e) { showError(e, 'public.home'); });
+    }
+
+    function showList(filters) {
+      var f = filters || {};
+      state.page = 'list';
+      state.nav++;
+      state.lastList = f;
+      state.currentId = null;
+      state.listPage = 1;
+      el('view').innerHTML = skeleton();
+
+      call('public.list', listPayload(f, 1)).then(function (result) {
+        // Carian tidak menandakan mana-mana cip; senarai penuh menandakan
+        // "Semua"; senarai kategori menandakan kategori itu.
+        var active = f.search ? null : (f.categoryId ? String(f.categoryId) : '');
+
+        var head = backControl() + categoryBar(active) +
+          '<div class="section-head"><h2 class="section-title">' +
+          esc(listTitle(f)) +
+          '</h2><span class="small muted">' + result.total + ' ' +
+          esc(t('news')).toLowerCase() + '</span></div>';
+
+        if (!result.items.length) {
+          el('view').innerHTML = head + '<div class="card"><div class="empty">' +
+            '<h3>' + esc(t('noResults')) + '</h3><p>' + esc(t('noResultsHint')) + '</p>' +
+            '</div></div>';
+          bindCards();
+          bindBack();
+          return;
+        }
+        el('view').innerHTML = head + gridHtml(result.items) + moreHtml(result);
+        bindCards();
+        bindBack();
+        bindMore(f);
+      }).catch(function (e) { showError(e, 'public.list'); });
+    }
+
+    function listPayload(f, page) {
+      var p = { page: page };
+      if (f.categoryId) p.categoryId = f.categoryId;
+      if (f.search) p.search = f.search;
+      return p;
+    }
+
+    /*
+     * Tajuk senarai mengikut apa yang sebenarnya ditapis. Sebelum ini
+     * senarai kategori bertajuk "Semua berita" walaupun hanya satu
+     * kategori dipaparkan.
+     */
+    function listTitle(f) {
+      if (f.search) return t('searchResults');
+      if (f.categoryId) {
+        var c = catById(f.categoryId);
+        if (c) return catName(c);
+      }
+      return t('allNews');
+    }
+
+    /*
+     * Butang "Muat lagi".
+     *
+     * public.list memulangkan 9 berita setiap halaman. Tanpa butang ini,
+     * berita ke-10 dan seterusnya tidak boleh dicapai langsung dari
+     * senarai — ia wujud, tetapi pembaca tiada jalan ke sana.
+     */
+    function moreHtml(result) {
+      if (!result || result.page >= result.totalPages) return '';
+      return '<div class="list-more" id="listMore">' +
+        '<button class="more-btn" id="loadMoreBtn">' + esc(t('loadMore')) + '</button></div>';
+    }
+
+    /*
+     * Satu pengendali sahaja, diikat sekali; butang kekal di tempatnya.
+     *
+     * Versi sebelum ini membuang butang dan menambahnya semula di hujung
+     * #view. Di halaman senarai itu kebetulan betul, tetapi di laman utama
+     * hujung #view berada di bawah rail sisi — butang akan melompat keluar
+     * dari lajur berita.
+     *
+     * state.nav menangkap sebarang pertukaran halaman semasa menunggu
+     * pelayan. Tanpanya, kad halaman kedua boleh ditambah ke grid "Berita
+     * Berkaitan" dalam artikel yang dibuka sementara itu.
+     */
+    function bindMore(f) {
+      var btn = el('loadMoreBtn');
+      if (!btn) return;
+      var nav = state.nav;
+
+      btn.addEventListener('click', function () {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.textContent = t('loading');
+        var next = state.listPage + 1;
+
+        call('public.list', listPayload(f, next)).then(function (result) {
+          if (state.nav !== nav) return;
+
+          state.listPage = next;
+          var grid = document.querySelector('#view .news-grid');
+          if (grid) grid.insertAdjacentHTML('beforeend', result.items.map(cardHtml).join(''));
+          bindCards();
+
+          if (result.page >= result.totalPages) {
+            var wrap = el('listMore');
+            if (wrap) wrap.remove();
+          } else {
+            btn.disabled = false;
+            btn.textContent = t('loadMore');
+          }
+        }).catch(function (e) {
+          if (state.nav !== nav) return;
+          btn.disabled = false;
+          btn.textContent = t('loadMore');
+          toast(e.message, 'warning');
+        });
+      });
+    }
+
+    /*
+     * Kawalan kembali dikongsi oleh halaman senarai, artikel dan ralat.
+     * Logo jenama juga membawa pulang, tetapi ia tidak kelihatan seperti
+     * butang — pembaca memerlukan jalan keluar yang jelas.
+     *
+     * Sasarannya ditentukan pada masa render: pembaca yang membuka artikel
+     * daripada satu kategori atau hasil carian dipulangkan ke senarai itu,
+     * bukan ke laman utama, supaya mereka tidak hilang tempat.
+     */
+    function backTarget() {
+      if (state.page === 'article' && state.lastList) {
+        var f = state.lastList;
+
+        if (f.search) {
+          return { label: t('searchResults'), go: function () { showList(f); } };
+        }
+        if (f.categoryId) {
+          var name = '';
+          (state.categories || []).forEach(function (c) {
+            if (String(c.categoryId) !== String(f.categoryId)) return;
+            name = state.lang === 'en' ? (c.categoryNameEn || c.categoryName)
+                                       : c.categoryName;
+          });
+          return { label: name || t('allNews'), go: function () { showList(f); } };
+        }
+        return { label: t('allNews'), go: function () { showList(f); } };
+      }
+      return { label: t('home'), go: goHome };
+    }
+
+    function goHome() {
+      var box = el('pubSearch');
+      if (box) box.value = '';
+      showHome();
+    }
+
+    function backControl() {
+      return '<button class="link-more back" data-back="1">&larr; ' +
+        esc(backTarget().label) + '</button>';
+    }
+
+    function bindBack() {
+      // Sasaran dikunci di sini supaya ia sepadan dengan label yang
+      // sudah dirender, walaupun state berubah kemudian.
+      var t = backTarget();
+      document.querySelectorAll('[data-back]').forEach(function (b) {
+        b.addEventListener('click', t.go);
+      });
+    }
+
+    function showArticle(newsId) {
+      state.page = 'article';
+      state.nav++;
+      state.currentId = newsId;
+      el('view').innerHTML = skeleton();
+      window.scrollTo(0, 0);
+
+      call('public.article', { newsId: newsId }).then(function (a) {
+        document.title = a.title + ' · ' + (state.settings.SYSTEM_SHORT_NAME || '');
+
+        var gallery = (a.images && a.images.length > 1)
+          ? '<div class="gallery" style="margin-top:26px">' + a.images.map(function (i) {
+              return '<figure class="thumb" style="margin:0">' +
+                '<img src="' + esc(i.thumbUrl) + '" alt="' + esc(i.altText || '') +
+                '" loading="lazy">' +
+                (i.caption ? '<figcaption class="thumb-body small muted">' +
+                  esc(i.caption) + '</figcaption>' : '') + '</figure>';
+            }).join('') + '</div>'
+          : '';
+
+        var related = (a.related && a.related.length)
+          ? '<div class="section-head" style="margin-top:36px">' +
+            '<h2 class="section-title">' + esc(t('relatedNews')) + '</h2></div>' +
+            gridHtml(a.related)
+          : '';
+
+        el('view').innerHTML =
+          '<article class="read-wrap">' +
+            backControl() +
+            '<span class="read-cat">' + esc(a.categoryName) + '</span>' +
+            '<h1 class="read-title">' + esc(a.title) + '</h1>' +
+            '<div class="meta-row read-meta">' +
+              meta('calendar', a.publishedAt) +
+              meta('eye', a.views + ' ' + t('views')) +
+              meta('clock', a.readMinutes + ' ' + t('readMinutes')) +
+            '</div>' +
+            '<p class="read-byline">' + esc(t('by')) + ' ' + esc(a.authorName) + '</p>' +
+            langNotice(a) +
+            shareRow(a) +
+            (a.imageUrl ? '<figure class="read-hero"><img src="' + esc(a.imageUrl) +
+              '" alt=""></figure>' : '') +
+            (a.summary ? '<p class="read-lead">' + esc(a.summary) + '</p>' : '') +
+            '<div class="article-body read-body">' + (a.content || '') + '</div>' +
+            gallery +
+          '</article>' + related;
+
+        bindBack();
+        bindCards();
+        bindShare(a);
+      }).catch(function (e) { showError(e, 'public.article'); });
+    }
+
+    function showError(err, action) {
+      // Ralat pada halaman dalam meninggalkan pembaca tanpa jalan keluar,
+      // jadi kawalan kembali disertakan kecuali ini memang laman utama.
+      var back = state.page === 'home' ? '' : backControl();
+      el('view').innerHTML = back + '<div class="card"><div class="empty">' +
+        '<h3>' + esc(t('loadFailed')) + '</h3><p>' + esc(err.message) + '</p>' +
+        (action ? '<p class="small muted">(' + esc(action) + ')</p>' : '') +
+        '</div></div>';
+      if (back) bindBack();
+    }
+
+    /* ---------------------------------------------------------- Komponen */
+
+    function skeleton() {
+      return '<div class="skeleton" style="height:300px;border-radius:var(--radius-lg)"></div>' +
+        '<div class="news-grid" style="margin-top:20px">' +
+        '<div class="skeleton" style="height:230px;border-radius:var(--radius)"></div>'.repeat(3) +
+        '</div>';
+    }
+
+    function heroHtml(data) {
+      if (!data.hero.length) return '';
+      var slides = data.hero.map(function (a, i) {
+        var bg = a.imageUrl
+          ? 'background-image:linear-gradient(90deg,rgba(8,15,26,.94),rgba(8,15,26,.72) 52%,rgba(8,15,26,.3)),url(' +
+            esc(a.imageUrl) + ')' : '';
+        return '<article class="hero-slide' + (i === 0 ? ' active' : '') +
+          '" style="' + bg + '"><div class="hero-slide-body">' +
+          '<span class="hero-tag">' + esc(t('featuredNews')) + '</span>' +
+          '<h2 class="hero-headline">' + esc(a.title) + '</h2>' +
+          '<p class="hero-excerpt">' + esc(a.summary) + '</p>' +
+          '<div class="meta-row">' + meta('calendar', a.publishedAt) +
+          meta('eye', a.views + ' ' + t('views')) + '</div>' +
+          '<button class="btn btn-accent" data-open="' + esc(a.newsId) +
+          '">' + esc(t('readMore')) + '</button></div></article>';
+      }).join('');
+
+      var dots = data.hero.length > 1
+        ? '<div class="hero-dots">' + data.hero.map(function (a, i) {
+            return '<button class="hero-dot' + (i === 0 ? ' active' : '') +
+              '" data-dot="' + i + '" aria-label="Berita ' + (i + 1) + '"></button>';
+          }).join('') + '</div>'
+        : '';
+
+      return '<section class="hero-carousel">' + slides + dots + '</section>';
+    }
+
+    function catById(id) {
+      var hit = null;
+      (state.categories || []).forEach(function (c) {
+        if (String(c.categoryId) === String(id)) hit = c;
+      });
+      return hit;
+    }
+
+    function catName(c) {
+      return state.lang === 'en' ? (c.categoryNameEn || c.categoryName) : c.categoryName;
+    }
+
+    /*
+     * Bar kategori.
+     *
+     * activeId:  null  — tiada cip aktif (laman utama, hasil carian)
+     *            ''    — "Semua" aktif (senarai penuh)
+     *            id    — kategori itu aktif
+     *
+     * Kiraan diambil daripada muatan laman utama terakhir. Jika pembaca
+     * tiba terus di senarai tanpa melalui laman utama, kiraan belum
+     * diketahui — cip dipaparkan tanpa nombor dan bukannya dengan sifar
+     * yang salah.
+     */
+    function categoryBar(activeId) {
+      var counts = state.catCounts;
+      var cats = (state.categories || []).map(function (c) {
+        return {
+          id: String(c.categoryId),
+          name: catName(c),
+          count: counts ? (counts[String(c.categoryId)] || 0) : null
+        };
+      }).filter(function (c) { return c.count === null || c.count > 0; });
+
+      if (!cats.length) return '';
+      cats.sort(function (a, b) { return (b.count || 0) - (a.count || 0); });
+
+      var pill = function (id, label, count) {
+        var on = activeId !== null && String(activeId) === id;
+        return '<button class="cat-pill' + (on ? ' active' : '') + '" data-cat="' + esc(id) +
+          '"' + (on ? ' aria-pressed="true"' : '') + '>' + esc(label) +
+          (count !== null && count !== undefined ? ' <span>' + count + '</span>' : '') +
+          '</button>';
+      };
+
+      return '<div class="cat-bar">' + pill('', t('all'), null) +
+        cats.map(function (c) { return pill(c.id, c.name, c.count); }).join('') + '</div>';
+    }
+
+    function cardHtml(a) {
+      var img = a.imageUrl
+        ? '<img src="' + esc(a.imageUrl) + '" alt="" loading="lazy">'
+        : '<div class="news-card-blank"></div>';
+      return '<article class="news-card" data-open="' + esc(a.newsId) +
+        '" tabindex="0" role="button">' +
+        '<div class="news-card-media">' + img +
+        '<span class="news-card-cat">' + esc(a.categoryName) + '</span></div>' +
+        '<div class="news-card-body"><h3 class="news-card-title">' + esc(a.title) + '</h3>' +
+        '<div class="meta-row">' + meta('calendar', a.publishedAt) +
+        meta('clock', a.readMinutes + ' ' + t('minShort')) + '</div></div></article>';
+    }
+
+    function gridHtml(items) {
+      if (!items || !items.length) return '';
+      return '<div class="news-grid">' + items.map(cardHtml).join('') + '</div>';
+    }
+
+    /* ------------------------------------------------------- Rail sisi */
+
+    var RAIL_ICONS = {
+      globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.2 2.3 3.4 5.3 3.4 8.5s-1.2 6.2-3.4 8.5c-2.2-2.3-3.4-5.3-3.4-8.5S9.8 5.8 12 3.5Z"/>',
+      'graduation-cap': '<path d="M12 4.5 22 9l-10 4.5L2 9l10-4.5Z"/><path d="M6 11v4.6c0 1.4 2.7 2.6 6 2.6s6-1.2 6-2.6V11"/>',
+      monitor: '<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8.5 20.5h7M12 17v3.5"/>',
+      'file-text': '<path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8L14 3.5Z"/><path d="M13.5 3.5V8.5H18.5M9 13h6M9 16.5h4"/>',
+      book: '<path d="M4 4.5h6.5a2 2 0 0 1 2 2v13a1.5 1.5 0 0 0-1.5-1.5H4v-13Z"/><path d="M20 4.5h-6.5a2 2 0 0 0-2 2v13a1.5 1.5 0 0 1 1.5-1.5H20v-13Z"/>',
+      headphones: '<path d="M3.5 15v-3a8.5 8.5 0 0 1 17 0v3"/><rect x="2.8" y="14.5" width="4" height="6" rx="1.8"/><rect x="17.2" y="14.5" width="4" height="6" rx="1.8"/>'
+    };
+
+    function railIcon(name) {
+      return '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" ' +
+        'stroke="currentColor" stroke-width="1.7" stroke-linecap="round" ' +
+        'stroke-linejoin="round" aria-hidden="true">' +
+        (RAIL_ICONS[name] || RAIL_ICONS.globe) + '</svg>';
+    }
+
+    /*
+     * Setiap kad dibina hanya apabila ia mempunyai isi. Kad ucapan hilang
+     * sepenuhnya pada hari biasa — bukan kotak kosong — supaya rail tidak
+     * kelihatan separuh siap.
+     */
+    function railHtml(sb) {
+      if (!sb) return '';
+      var parts = [];
+
+      if (sb.greetingCard && sb.greetingCard.posterUrl) {
+        parts.push('<div class="rail-card rail-greeting">' +
+          '<img src="' + esc(sb.greetingCard.posterUrl) + '" alt="' +
+          esc(sb.greetingCard.title) + '" loading="lazy">' +
+          '<div class="rail-greeting-cap">' + esc(sb.greetingCard.title) + '</div></div>');
+      }
+
+      if (sb.trend && sb.trend.length) {
+        var max = 1;
+        sb.trend.forEach(function (r) { if (r.count > max) max = r.count; });
+
+        parts.push('<div class="rail-card"><h3>' + esc(t('monthlyTrend')) + '</h3>' +
+          sb.trend.map(function (r) {
+            return '<div class="trend-row">' +
+              '<span class="trend-label">' + esc(r.month) + '</span>' +
+              '<span class="trend-track"><span class="trend-fill" style="width:' +
+                Math.round((r.count / max) * 100) + '%"></span></span>' +
+              '<span class="trend-count">' + r.count + '</span></div>';
+          }).join('') +
+          '<p class="small muted" style="margin:10px 0 0">' +
+          esc(t('monthlyTrendHint')) + '</p></div>');
+      }
+
+      if (sb.quickLinks && sb.quickLinks.length) {
+        parts.push('<div class="rail-card"><h3>' + esc(t('quickLinks')) +
+          '</h3><div class="rail-links">' +
+          sb.quickLinks.map(function (l) {
+            return '<a class="rail-link" href="' + esc(l.url) +
+              '" target="_blank" rel="noopener noreferrer">' +
+              railIcon(l.icon) + esc(l.label) + '</a>';
+          }).join('') + '</div></div>');
+      }
+
+      parts.push('<div class="rail-card"><h3>' + esc(t('weather')) + '</h3>' +
+        '<div id="wxBox"><p class="small muted" style="margin:0">' +
+        esc(t('loading')) + '</p></div></div>');
+
+      return parts.length ? '<aside class="rail">' + parts.join('') + '</aside>' : '';
+    }
+
+    /*
+     * Cuaca diambil terus oleh pelayar daripada Open-Meteo.
+     *
+     * Ia sengaja tidak melalui pelayan: data ini awam sepenuhnya dan tiada
+     * kunci API untuk dilindungi, jadi menghantarnya melalui UrlFetchApp
+     * hanya akan membakar kuota harian skrip dan menambah kelewatan
+     * google.script.run pada maklumat hiasan.
+     */
+    function loadWeather() {
+      var box = el('wxBox');
+      if (!box) return;
+
+      /*
+       * Satu permintaan membawa kedua-dua siri: 24 jam untuk tab "Jam",
+       * dan 16 hari untuk tab "Minggu" dan "16 Hari". Menukar tab tidak
+       * memanggil rangkaian semula — data sudah ada di pelayar.
+       */
+      fetch('https://api.open-meteo.com/v1/forecast?latitude=1.5586&longitude=103.6376' +
+            '&current=temperature_2m,weathercode' +
+            '&hourly=temperature_2m,weathercode&forecast_hours=24' +
+            '&daily=temperature_2m_max,temperature_2m_min,weathercode&forecast_days=16' +
+            '&timezone=Asia%2FKuala_Lumpur')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.daily) throw new Error('bad payload');
+          renderWeather(box, d);
+        })
+        .catch(function () {
+          box.innerHTML = '<p class="small muted" style="margin:0">' +
+            esc(t('weatherUnavailable')) + '</p>';
+        });
+    }
+
+    function wxIcon(code) {
+      if (code === 0) return '☀️';
+      if ([1, 2, 3].indexOf(code) !== -1) return '⛅';
+      if ([45, 48].indexOf(code) !== -1) return '🌫️';
+      if ([51, 53, 55, 61, 63, 65, 80, 81, 82].indexOf(code) !== -1) return '🌧️';
+      if ([95, 96, 99].indexOf(code) !== -1) return '⛈️';
+      return '🌤️';
+    }
+
+    /*
+     * Nama hari dan bulan disimpan di sini, bukan dalam kamus I18N.
+     *
+     * Kamus itu untuk label antara muka yang mungkin diubah oleh Admin
+     * kemudian. Nama kalendar pula tetap dan berpasangan mengikut indeks —
+     * menyimpannya sebagai 24 kunci berasingan hanya menjemput satu
+     * daripadanya tersilap susun tanpa disedari.
+     */
+    var WX_DAYS = {
+      bm: ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'],
+      en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    };
+    var WX_MONTHS = {
+      bm: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogos', 'Sep', 'Okt', 'Nov', 'Dis'],
+      en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    };
+
+    function wxDayName(i) {
+      return (WX_DAYS[state.lang] || WX_DAYS.bm)[i];
+    }
+
+    function wxDate(dt) {
+      var m = (WX_MONTHS[state.lang] || WX_MONTHS.bm)[dt.getMonth()];
+      return dt.getDate() + ' ' + m + ' ' + dt.getFullYear();
+    }
+
+    /*
+     * Open-Meteo mengembalikan cap masa tanpa zon ("2026-09-21T14:00").
+     * new Date() akan menafsirkannya mengikut zon pelayar, yang menggeser
+     * jam apabila pelawat berada di luar Malaysia. Bahagian tarikh dibaca
+     * terus daripada rentetan supaya nilai yang dipaparkan sentiasa waktu
+     * tempatan Johor, seperti yang diminta daripada API.
+     */
+    function wxParse(s) {
+      var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+      if (!m) return { date: new Date(), hour: 0 };
+      return {
+        date: new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])),
+        hour: m[4] ? Number(m[4]) : 0
+      };
+    }
+
+    function wxRow(whenMain, whenSub, code, tempHtml, isNow) {
+      return '<div class="wx-row' + (isNow ? ' is-now' : '') + '">' +
+        '<span class="wx-row-when">' + esc(whenMain) +
+          (whenSub ? '<small>' + esc(whenSub) + '</small>' : '') + '</span>' +
+        '<span class="wx-row-icon">' + wxIcon(code) + '</span>' +
+        '<span class="wx-row-temp">' + tempHtml + '</span></div>';
+    }
+
+    function wxHourly(d) {
+      if (!d.hourly || !d.hourly.time) {
+        return '<p class="small muted" style="margin:0">' +
+          esc(t('wxHourlyUnavailable')) + '</p>';
+      }
+      var rows = '';
+      for (var i = 0; i < d.hourly.time.length; i++) {
+        var p = wxParse(d.hourly.time[i]);
+        var hh = (p.hour < 10 ? '0' : '') + p.hour + ':00';
+        rows += wxRow(hh, i === 0 ? t('wxNow') : wxDayName(p.date.getDay()),
+          d.hourly.weathercode[i],
+          '<b>' + Math.round(d.hourly.temperature_2m[i]) + '°</b>', i === 0);
+      }
+      return '<div class="wx-list">' + rows + '</div>';
+    }
+
+    function wxDaily(d, limit) {
+      var rows = '';
+      var n = Math.min(limit, d.daily.time.length);
+      for (var i = 0; i < n; i++) {
+        var p = wxParse(d.daily.time[i]);
+        rows += wxRow(i === 0 ? t('wxToday') : wxDayName(p.date.getDay()),
+          wxDate(p.date), d.daily.weathercode[i],
+          '<b>' + Math.round(d.daily.temperature_2m_max[i]) + '°</b>/' +
+          Math.round(d.daily.temperature_2m_min[i]) + '°', i === 0);
+      }
+      return '<div class="wx-list">' + rows + '</div>';
+    }
+
+    function renderWeather(box, d) {
+      var today = wxParse(d.daily.time[0]).date;
+      var nowTemp = (d.current && typeof d.current.temperature_2m === 'number')
+        ? d.current.temperature_2m : d.daily.temperature_2m_max[0];
+      var nowCode = (d.current && typeof d.current.weathercode === 'number')
+        ? d.current.weathercode : d.daily.weathercode[0];
+
+      var views = {
+        jam: function () { return wxHourly(d); },
+        minggu: function () { return wxDaily(d, 7); },
+        lanjut: function () { return wxDaily(d, 16); }
+      };
+
+      box.innerHTML =
+        '<div class="wx-now"><div>' +
+          '<div class="wx-temp">' + Math.round(nowTemp) + '°C</div>' +
+          '<div class="wx-loc">Skudai, Johor</div>' +
+          '<div class="wx-today">' +
+            esc(wxDayName(today.getDay()) + ', ' + wxDate(today)) + '</div>' +
+        '</div><div style="font-size:2rem">' + wxIcon(nowCode) + '</div></div>' +
+        '<div class="wx-tabs" role="tablist">' +
+          '<button class="wx-tab" role="tab" data-wx="jam" aria-selected="false">' +
+            esc(t('wxHour')) + '</button>' +
+          '<button class="wx-tab" role="tab" data-wx="minggu" aria-selected="true">' +
+            esc(t('wxWeek')) + '</button>' +
+          '<button class="wx-tab" role="tab" data-wx="lanjut" aria-selected="false">' +
+            esc(t('wx16Day')) + '</button>' +
+        '</div>' +
+        '<div id="wxPanel" role="tabpanel">' + views.minggu() + '</div>';
+
+      box.querySelectorAll('[data-wx]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          box.querySelectorAll('[data-wx]').forEach(function (b) {
+            b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+          });
+          el('wxPanel').innerHTML = views[btn.dataset.wx]();
+        });
+      });
+    }
+
+    /*
+     * Penunjuk kandungan berundur.
+     *
+     * Ia muncul hanya apabila pembaca meminta English dan sebahagian
+     * kandungan tidak tersedia. Tujuannya menerangkan, bukan menghalang:
+     * berita tetap dipaparkan dalam BM di bawah penunjuk ini. Tiada
+     * terjemahan automatik dilakukan — teks mesin pada laman rasmi fakulti
+     * lebih memudaratkan daripada teks BM yang jujur.
+     */
+    function langNotice(a) {
+      if (!a || !a.hasFallback) return '';
+      var msg = state.lang === 'en' ? t('englishUnavailable') : t('malayUnavailable');
+      return '<p class="lang-notice" role="note">' +
+        '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" ' +
+        'stroke-width="1.8" stroke-linecap="round" aria-hidden="true">' +
+        '<circle cx="12" cy="12" r="8.5"/><path d="M12 8v5M12 16h.01"/></svg>' +
+        esc(msg) + '</p>';
+    }
+
+    function shareRow(a) {
+      if (!a.shareUrl) return '';
+      var items = [
+        ['facebook', '#1877F2', '<path d="M14 8.5h2.5V5.2H14c-2.3 0-3.8 1.5-3.8 3.8v1.8H8v3.3h2.2V21h3.3v-6.9h2.4l.4-3.3h-2.8V9.4c0-.6.2-.9.5-.9Z"/>'],
+        ['x', '#0F1419', '<path d="M4 4h3.8l4.3 5.9L17.3 4H21l-6.6 7.7L21.4 20h-3.8l-4.6-6.3L7.2 20H3.6l7-8.1Z"/>'],
+        ['linkedin', '#0A66C2', '<path d="M5.5 4.2a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6ZM4 9.4h3v10.4H4Zm5.5 0h2.9v1.4c.5-.9 1.6-1.6 3-1.6 2.6 0 3.6 1.6 3.6 4.3v6.3h-3v-5.6c0-1.4-.5-2.2-1.7-2.2-1 0-1.7.7-1.7 2.2v5.6h-3Z"/>'],
+        ['whatsapp', '#25D366', '<path d="M12 3.5a8.4 8.4 0 0 0-7.2 12.7L3.5 20.5l4.4-1.2A8.4 8.4 0 1 0 12 3.5Zm4.6 11.8c-.2.6-1.1 1.1-1.6 1.1-.4 0-.9.1-3-.8-2.5-1.1-4.1-3.7-4.2-3.9-.1-.2-1-1.4-1-2.6s.6-1.8.9-2.1c.2-.2.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2 0 .4-.1.5l-.3.4c-.1.2-.3.3-.1.6.1.3.7 1.2 1.5 1.9 1 .9 1.8 1.1 2 1.2.3.1.4.1.6-.1l.8-1c.2-.2.4-.2.6-.1l1.8.9c.2.1.4.2.4.3.1.2.1.6 0 .9Z"/>']
+      ];
+      /*
+       * Pautan dipaparkan sebagai teks, bukan disembunyikan di sebalik butang.
+       * Bar alamat pelayar menunjukkan URL aplikasi dan tidak berubah antara
+       * berita, kerana aplikasi berjalan dalam iframe. Sesiapa yang menyalin
+       * dari bar alamat akan mendapat pautan yang salah — jadi pautan yang
+       * betul mesti kelihatan di sini.
+       */
+      return '<div class="share-row"><span class="share-label">' + esc(t('share')) + '</span>' +
+        items.map(function (i) {
+          return '<button class="share-btn" data-share="' + i[0] + '" style="--brand:' +
+            i[1] + '" aria-label="Kongsi ke ' + i[0] + '">' +
+            '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">' +
+            i[2] + '</svg></button>';
+        }).join('') +
+        '<button class="share-btn share-copy" data-share="copy" aria-label="Salin pautan">' +
+        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
+        'stroke-width="1.8"><rect x="9" y="9" width="11" height="11" rx="2"/>' +
+        '<path d="M5 15V5h10"/></svg></button></div>';
+    }
+
+    /* ----------------------------------------------------------- Binding */
+
+    /*
+     * Setiap nod diikat SEKALI sahaja.
+     *
+     * "Muat lagi" menambah kad pada grid sedia ada lalu memanggil fungsi
+     * ini semula. Tanpa penanda data-bound, kad lama menerima pendengar
+     * kedua — satu klik membuka artikel dua kali dan menambah dua
+     * tontonan.
+     */
+    function bindCards() {
+      document.querySelectorAll('[data-open]').forEach(function (n) {
+        if (n.dataset.bound) return;
+        n.dataset.bound = '1';
+        function go() { showArticle(n.dataset.open); }
+        n.addEventListener('click', go);
+        n.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+        });
+      });
+
+      // "Semua" membawa ke laman utama, yang kini memaparkan semua berita.
+      // Jika pembaca sudah berada di sana, tiada apa-apa dimuat semula.
+      document.querySelectorAll('[data-cat]').forEach(function (n) {
+        if (n.dataset.bound) return;
+        n.dataset.bound = '1';
+        n.addEventListener('click', function () {
+          clearSearch();
+          if (!n.dataset.cat) {
+            if (state.page !== 'home') showHome();
+          } else {
+            showList({ categoryId: n.dataset.cat });
+          }
+        });
+      });
+    }
+
+    function clearSearch() {
+      var box = el('pubSearch');
+      if (box) box.value = '';
+    }
+
+    function bindHero(data) {
+      var dots = document.querySelectorAll('[data-dot]');
+      var slides = document.querySelectorAll('.hero-slide');
+      if (!dots.length) return;
+
+      var index = 0;
+      function go(i) {
+        index = (i + slides.length) % slides.length;
+        slides.forEach(function (s, k) { s.classList.toggle('active', k === index); });
+        dots.forEach(function (d, k) { d.classList.toggle('active', k === index); });
+      }
+      dots.forEach(function (d) {
+        d.addEventListener('click', function () { go(Number(d.dataset.dot)); });
+      });
+      setInterval(function () {
+        if (state.page === 'home') go(index + 1);
+      }, 7000);
+    }
+
+    function bindShare(a) {
+      document.querySelectorAll('[data-share]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var url = encodeURIComponent(a.shareUrl);
+          var title = encodeURIComponent(a.title);
+          var targets = {
+            facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url,
+            x: 'https://twitter.com/intent/tweet?url=' + url + '&text=' + title,
+            linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=' + url,
+            whatsapp: 'https://api.whatsapp.com/send?text=' + title + '%20' + url
+          };
+
+          if (btn.dataset.share === 'copy') {
+            var box = document.createElement('textarea');
+            box.value = a.shareUrl;
+            box.style.position = 'fixed';
+            box.style.opacity = '0';
+            document.body.appendChild(box);
+            box.select();
+            try { document.execCommand('copy'); toast(t('linkCopied'), 'success'); }
+            catch (e) { toast(a.shareUrl, 'warning'); }
+            document.body.removeChild(box);
+            return;
+          }
+
+          window.open(targets[btn.dataset.share], '_blank',
+            'noopener,noreferrer,width=640,height=560');
+        });
+      });
+    }
+
+    /* ---------------------------------------------------------------- But */
+
+    function start() {
+      try {
+        var saved = localStorage.getItem('FKMNEWS_PUB_THEME');
+        if (saved) state.mode = saved;
+      } catch (e) { }
+
+      /*
+       * Keutamaan bahasa: parameter URL, kemudian pilihan tersimpan,
+       * kemudian BM.
+       *
+       * Parameter didahulukan supaya pautan kongsi membuka artikel dalam
+       * bahasa yang dilihat oleh pengirim — penerima tidak sepatutnya
+       * mendapat bahasa yang berbeza daripada apa yang dikongsikan.
+       */
+      var urlLang = '<?= bootLang ?>';
+      if (urlLang === 'bm' || urlLang === 'en') {
+        state.lang = urlLang;
+      } else {
+        try {
+          var sl = localStorage.getItem('FKMNEWS_PUB_LANG');
+          if (sl === 'bm' || sl === 'en') state.lang = sl;
+        } catch (e) { }
+      }
+
+      call('public.bootstrap').then(function (data) {
+        state.settings = data.settings;
+        state.categories = data.categories;
+        state.dicts = data.dicts || {};
+
+        applyTheme();
+        applyLang();
+
+        var s = state.settings;
+        document.title = s.SYSTEM_SHORT_NAME || t('siteName');
+        el('brandName').textContent = s.SYSTEM_SHORT_NAME || '';
+        el('brandSub').textContent = s.FACULTY_NAME || '';
+        el('footerText').textContent = s.FOOTER_TEXT || '';
+        el('footerOrg').textContent = s.ORGANISATION_NAME || '';
+
+        var mark = el('brandMark');
+        if (s.LOGO_URL) { mark.style.backgroundImage = 'url(' + s.LOGO_URL + ')'; }
+        else {
+          mark.textContent = (s.SYSTEM_SHORT_NAME || 'FN')
+            .replace(/[^A-Za-z]/g, '').substring(0, 2).toUpperCase();
+        }
+
+        el('boot').hidden = true;
+        el('site').hidden = false;
+
+        el('brandBtn').addEventListener('click', goHome);
+        el('pubTheme').addEventListener('click', toggleTheme);
+
+        document.querySelectorAll('[data-lang]').forEach(function (b) {
+          b.addEventListener('click', function () { setLang(b.dataset.lang); });
+        });
+        el('pubSearch').addEventListener('input', debounce(function (e) {
+          var q = e.target.value.trim();
+          if (q.length >= 2) showList({ search: q });
+          else if (!q) showHome();
+        }, 400));
+
+        // Tanda petik ditulis di sini dalam HTML, bukan dijana dari dalam
+        // scriptlet. Scriptlet output melakukan HTML-escape, jadi tanda petik
+        // yang dijana di dalamnya menjadi entiti dan merosakkan nilai.
+        // Corak ini sama seperti yang digunakan Index.html.
+        var boot = '<?= bootId ?>';
+        if (boot) showArticle(boot);
+        else showHome();
+
+      }).catch(function (err) {
+        el('boot').hidden = true;
+        el('site').hidden = false;
+        showError(err);
+      });
+    }
+
+    return { start: start };
+  })();
+
+  Pub.start();
+  </script>
+</body>
+</html>

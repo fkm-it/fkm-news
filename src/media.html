@@ -1,0 +1,205 @@
+<script>
+/* media.html — pustaka media.
+   Memaparkan setiap gambar dalam sistem bersama artikel yang memilikinya.
+   Skop capaian ditentukan sepenuhnya oleh server mengikut peranan. */
+
+App.views['media'] = {
+
+  page: 1,
+  filters: { search: '', categoryId: '', newsId: '', featuredOnly: false, socialOnly: false },
+
+  title: function () { return 'Media'; },
+
+  render: function (container) {
+    var self = this;
+    self.page = 1;
+
+    var categoryOptions = App.state.categories.map(function (c) {
+      return '<option value="' + App.esc(c.categoryId) + '">' +
+        App.esc(c.categoryName) + '</option>';
+    }).join('');
+
+    container.innerHTML =
+      '<section class="card section">' +
+        '<div class="panel-head">' +
+          '<span class="panel-icon">' + App.icon('image', 18) + '</span>' +
+          '<div><div class="panel-title">Pustaka Media</div>' +
+          '<div class="panel-sub">Setiap gambar dalam sistem, bersama berita yang memilikinya</div></div>' +
+        '</div>' +
+        '<div class="media-stats" id="mediaStats"></div>' +
+        '<div class="toolbar">' +
+          '<span class="search-field">' + App.icon('search', 16) +
+          '<input type="search" id="mSearch" placeholder="Cari nama fail, kapsyen atau tajuk berita…" ' +
+          'aria-label="Cari media"></span>' +
+          '<select id="mCategory" aria-label="Tapis kategori">' +
+            '<option value="">Semua kategori</option>' + categoryOptions + '</select>' +
+          '<select id="mSource" aria-label="Tapis berita">' +
+            '<option value="">Semua berita</option></select>' +
+          '<select id="mFlag" aria-label="Tapis jenis">' +
+            '<option value="">Semua gambar</option>' +
+            '<option value="featured">Gambar utama sahaja</option>' +
+            '<option value="social">Ditanda untuk media sosial</option>' +
+          '</select>' +
+        '</div>' +
+      '</section>' +
+      '<section class="card" id="mediaCard"></section>';
+
+    self.bindFilters(container);
+    self.loadSources(container);
+    return self.load(container);
+  },
+
+  bindFilters: function (container) {
+    var self = this;
+
+    var search = container.querySelector('#mSearch');
+    search.addEventListener('input', App.debounce(function () {
+      self.filters.search = search.value;
+      self.page = 1;
+      self.load(container);
+    }, 320));
+
+    container.querySelector('#mCategory').addEventListener('change', function (e) {
+      self.filters.categoryId = e.target.value;
+      self.page = 1;
+      self.load(container);
+    });
+
+    container.querySelector('#mSource').addEventListener('change', function (e) {
+      self.filters.newsId = e.target.value;
+      self.page = 1;
+      self.load(container);
+    });
+
+    container.querySelector('#mFlag').addEventListener('change', function (e) {
+      self.filters.featuredOnly = e.target.value === 'featured';
+      self.filters.socialOnly = e.target.value === 'social';
+      self.page = 1;
+      self.load(container);
+    });
+  },
+
+  loadSources: function (container) {
+    App.call('media.sources').then(function (sources) {
+      if (!sources.length) return;
+      var select = container.querySelector('#mSource');
+      select.innerHTML = '<option value="">Semua berita</option>' +
+        sources.map(function (s) {
+          return '<option value="' + App.esc(s.newsId) + '">' +
+            App.esc(App.truncate ? App.truncate(s.title, 46) : s.title) +
+            ' (' + s.count + ')</option>';
+        }).join('');
+    }).catch(function () { /* penapis pilihan — abaikan jika gagal */ });
+  },
+
+  load: function (container) {
+    var self = this;
+    var card = container.querySelector('#mediaCard');
+
+    card.innerHTML = '<div class="media-grid">' +
+      '<div class="skeleton" style="aspect-ratio:4/3;border-radius:var(--radius)"></div>'.repeat(8) +
+      '</div>';
+
+    return App.call('media.list', {
+      filters: self.filters,
+      page: self.page,
+      pageSize: 24
+    }).then(function (result) {
+      self.renderStats(container, result.stats);
+
+      if (!result.items.length) {
+        card.innerHTML = App.emptyState(
+          'Tiada gambar dijumpai',
+          'Gambar dimuat naik melalui borang berita. Buka satu berita, pergi ke bahagian Galeri gambar, dan muat naik di situ.',
+          App.can('news.create')
+            ? '<button class="btn" id="mediaWrite">Tulis berita</button>' : '',
+          'image');
+
+        var w = card.querySelector('#mediaWrite');
+        if (w) w.addEventListener('click', function () {
+          App.navigate('news-form', { mode: 'create' });
+        });
+        return;
+      }
+
+      var tiles = result.items.map(function (m, i) {
+        return '<button class="media-tile" data-media="' + i + '">' +
+          (m.isFeatured ? '<span class="media-flag">Utama</span>' : '') +
+          '<img src="' + App.esc(m.thumbUrl) + '" alt="' +
+          App.esc(m.altText || m.caption || m.fileName) + '" loading="lazy">' +
+          '<span class="media-meta">' +
+            '<span class="media-name">' + App.esc(m.caption || m.fileName) + '</span>' +
+            '<span class="media-sub">' + App.esc(m.newsTitle) + '</span>' +
+          '</span></button>';
+      }).join('');
+
+      var pager = App.pager(result, function (page) {
+        self.page = page;
+        self.load(container);
+      });
+
+      card.innerHTML = '<div class="media-grid">' + tiles + '</div>' + pager.html;
+      pager.bind(card);
+
+      card.querySelectorAll('[data-media]').forEach(function (tile) {
+        tile.addEventListener('click', function () {
+          self.preview(result.items[Number(tile.dataset.media)]);
+        });
+      });
+    });
+  },
+
+  renderStats: function (container, stats) {
+    var mount = container.querySelector('#mediaStats');
+    if (!mount) return;
+
+    var items = [
+      { label: 'Jumlah gambar', value: stats.totalImages },
+      { label: 'Jumlah saiz', value: stats.totalSize },
+      { label: 'Berita berkaitan', value: stats.linkedNews },
+      { label: 'Gambar utama', value: stats.featured },
+      { label: 'Untuk media sosial', value: stats.forSocial }
+    ];
+
+    mount.innerHTML = items.map(function (s) {
+      return '<div class="media-stat">' +
+        '<span class="media-stat-value">' + App.esc(s.value) + '</span>' +
+        '<span class="media-stat-label">' + App.esc(s.label) + '</span></div>';
+    }).join('');
+  },
+
+  /** Pratonton besar dengan butiran dan pautan ke berita induk */
+  preview: function (m) {
+    App.openModal({
+      title: m.caption || m.fileName,
+      wide: true,
+      body: '<div class="media-view">' +
+        '<img src="' + App.esc(m.thumbUrl) + '" alt="' +
+        App.esc(m.altText || m.caption || m.fileName) + '">' +
+        '<div class="media-facts">' +
+          '<div class="media-fact"><span>Berita</span><span>' +
+            App.esc(m.newsTitle) + '</span></div>' +
+          '<div class="media-fact"><span>Status berita</span><span>' +
+            App.statusPill(m.statusLabel, m.statusColor) + '</span></div>' +
+          '<div class="media-fact"><span>Kategori</span><span>' +
+            App.esc(m.categoryName) + '</span></div>' +
+          '<div class="media-fact"><span>Penulis</span><span>' +
+            App.esc(m.authorName) + '</span></div>' +
+          '<div class="media-fact"><span>Nama fail</span><span>' +
+            App.esc(m.fileName) + '</span></div>' +
+          '<div class="media-fact"><span>Saiz</span><span>' +
+            App.esc(m.sizeLabel) + '</span></div>' +
+          '<div class="media-fact"><span>Dimuat naik</span><span>' +
+            App.esc(m.uploadedAt) + '</span></div>' +
+        '</div></div>',
+      buttons: [
+        { label: 'Tutup', className: 'btn-ghost', onClick: App.closeModal },
+        { label: 'Buka berita', className: 'btn', onClick: function () {
+            App.closeModal();
+            App.navigate('news-detail', { newsId: m.newsId });
+          } }
+      ]
+    });
+  }
+};
+</script>

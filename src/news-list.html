@@ -1,0 +1,144 @@
+<script>
+/* news-list.html — senarai berita dengan penapis, carian dan pagination.
+   Skop data ditentukan oleh server mengikut peranan; frontend hanya meminta. */
+
+App.views['news-list'] = {
+
+  filters: { search: '', status: '', categoryId: '', scope: '' },
+  page: 1,
+
+  title: function () {
+    return App.state.settings.LABEL_NEWS_PLURAL || 'Berita';
+  },
+
+  render: function (container, params) {
+    var self = this;
+    if (params && params.scope !== undefined) self.filters.scope = params.scope;
+    if (params && params.categoryId) self.filters.categoryId = params.categoryId;
+    if (params && params.status) self.filters.status = params.status;
+    self.page = (params && params.page) || 1;
+
+    container.innerHTML = self.chrome();
+    self.bind(container);
+    return self.load(container);
+  },
+
+  chrome: function () {
+    var statusOptions = App.state.statuses.map(function (s) {
+      return '<option value="' + App.esc(s.value) + '">' + App.esc(s.label) + '</option>';
+    }).join('');
+
+    var categoryOptions = App.state.categories.map(function (c) {
+      return '<option value="' + App.esc(c.categoryId) + '">' +
+        App.esc(c.categoryName) + '</option>';
+    }).join('');
+
+    var createBtn = App.can('news.create')
+      ? '<button class="btn" id="newBtn">' + App.icon('plus', 15) + 'Tulis berita</button>' : '';
+
+    return '<section class="card section">' +
+      '<div class="panel-head">' +
+        '<span class="panel-icon">' + App.icon('news', 18) + '</span>' +
+        '<div><div class="panel-title">Pengurusan Berita</div>' +
+        '<div class="panel-sub">Semua berita yang anda dibenarkan lihat</div></div>' +
+        '<span class="spacer"></span>' + createBtn +
+      '</div>' +
+      '<div class="toolbar">' +
+        '<span class="search-field">' + App.icon('search', 16) +
+        '<input type="search" id="fSearch" placeholder="Cari tajuk atau ID…" ' +
+        'aria-label="Cari berita"></span>' +
+        '<select id="fStatus" aria-label="Tapis status"><option value="">Semua status</option>' +
+        statusOptions + '</select>' +
+        '<select id="fCategory" aria-label="Tapis kategori"><option value="">Semua kategori</option>' +
+        categoryOptions + '</select>' +
+        '<select id="fScope" aria-label="Tapis skop">' +
+          '<option value="">Semua yang boleh saya lihat</option>' +
+          '<option value="mine">Tulisan saya</option>' +
+        '</select>' +
+      '</div></section>' +
+      '<section class="card" id="listCard"></section>';
+  },
+
+  bind: function (container) {
+    var self = this;
+
+    var newBtn = container.querySelector('#newBtn');
+    if (newBtn) newBtn.addEventListener('click', function () {
+      App.navigate('news-form', { mode: 'create' });
+    });
+
+    var search = container.querySelector('#fSearch');
+    search.value = self.filters.search;
+    search.addEventListener('input', App.debounce(function () {
+      self.filters.search = search.value;
+      self.page = 1;
+      self.load(container);
+    }, 340));
+
+    ['fStatus', 'fCategory', 'fScope'].forEach(function (id) {
+      var node = container.querySelector('#' + id);
+      var key = { fStatus: 'status', fCategory: 'categoryId', fScope: 'scope' }[id];
+      node.value = self.filters[key];
+      node.addEventListener('change', function () {
+        self.filters[key] = node.value;
+        self.page = 1;
+        self.load(container);
+      });
+    });
+  },
+
+  load: function (container) {
+    var self = this;
+    var card = container.querySelector('#listCard');
+    card.innerHTML = '<div class="card-pad skeleton-stack">' +
+      '<div class="skeleton skeleton-row"></div>'.repeat(5) + '</div>';
+
+    return App.call('news.list', {
+      filters: self.filters,
+      page: self.page,
+      pageSize: App.state.settings.PAGE_SIZE
+    }).then(function (result) {
+      if (!result.items.length) {
+        card.innerHTML = App.emptyState(
+          'Tiada berita dijumpai',
+          'Tiada rekod sepadan dengan penapis semasa. Kosongkan penapis, atau mulakan berita baharu.',
+          App.can('news.create')
+            ? '<button class="btn" id="emptyNew">Tulis berita</button>' : '',
+          'news');
+        var emptyBtn = card.querySelector('#emptyNew');
+        if (emptyBtn) emptyBtn.addEventListener('click', function () {
+          App.navigate('news-form', { mode: 'create' });
+        });
+        return;
+      }
+
+      var rows = result.items.map(function (n) {
+        return '<tr class="clickable" data-news="' + App.esc(n.newsId) + '">' +
+          '<td data-label="Tajuk"><div class="cell-title">' + App.esc(n.title) + '</div>' +
+          '<div class="cell-sub">' + App.esc(n.newsId) + ' · v' + n.currentVersion + '</div></td>' +
+          '<td data-label="Kategori">' + App.esc(n.categoryName) + '</td>' +
+          '<td data-label="Penulis">' + App.esc(n.authorName) + '</td>' +
+          '<td data-label="Status">' + App.statusPill(n.statusLabel, n.statusColor) + '</td>' +
+          '<td data-label="Kemas kini" class="cell-sub">' + App.esc(n.updatedAt) + '</td></tr>';
+      }).join('');
+
+      var p = App.pager(result, function (page) {
+        self.page = page;
+        self.load(container);
+      });
+
+      card.innerHTML = '<div class="table-wrap"><table class="stacked"><thead><tr>' +
+        '<th>Tajuk</th><th>Kategori</th><th>Penulis</th><th>Status</th><th>Kemas kini</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' + p.html;
+
+      p.bind(card);
+
+      card.querySelectorAll('[data-news]').forEach(function (tr) {
+        tr.addEventListener('click', function () {
+          App.navigate('news-detail', { newsId: tr.dataset.news });
+        });
+      });
+    });
+  }
+};
+</script>

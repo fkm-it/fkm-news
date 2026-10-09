@@ -1,0 +1,135 @@
+<script>
+/* dashboard.html — papan pemuka mengikut peranan.
+   Semua had (bilangan KPI, bulan trend, rekod terkini) datang dari server,
+   yang membacanya dari Global Settings. */
+
+App.views['dashboard'] = {
+
+  title: function () {
+    return App.state.settings.LABEL_DASHBOARD || 'Papan Pemuka';
+  },
+
+  render: function (container) {
+    var self = this;
+    return App.call('dashboard.get', { filters: {} }).then(function (data) {
+      container.innerHTML =
+        self.kpiSection(data) +
+        self.queueSection(data) +
+        '<div class="grid section" style="grid-template-columns:repeat(auto-fit,minmax(310px,1fr))">' +
+          self.trendSection(data) +
+          self.breakdownSection(data) +
+        '</div>' +
+        self.recentSection(data);
+
+      App.on(container, '[data-open-news]', 'click', function (e, target) {
+        App.navigate('news-detail', { newsId: target.dataset.openNews });
+      });
+    });
+  },
+
+  kpiSection: function (data) {
+    if (!data.kpis.length) return '';
+    var cards = data.kpis.map(function (k) {
+      return '<div class="kpi" style="--kpi-color:' + App.esc(k.color) + '">' +
+        '<div class="kpi-value mono">' + k.value + '</div>' +
+        '<div class="kpi-label">' + App.esc(k.label) + '</div>' +
+        (k.hint ? '<div class="kpi-hint">' + App.esc(k.hint) + '</div>' : '') +
+        '</div>';
+    }).join('');
+    return '<div class="kpis section">' + cards + '</div>';
+  },
+
+  queueSection: function (data) {
+    var heading = data.role === 'AUTHOR' ? 'Perlu tindakan anda' : 'Giliran semakan anda';
+
+    if (!data.actionQueue.length) {
+      return '<section class="card section">' +
+        '<div class="card-head"><h2>' + heading + '</h2></div>' +
+        App.emptyState('Tiada tindakan tertunggak',
+          data.role === 'AUTHOR'
+            ? 'Semua berita anda sedang bergerak dalam aliran kerja.'
+            : 'Tiada berita menunggu keputusan anda buat masa ini.') +
+        '</section>';
+    }
+
+    var rows = data.actionQueue.map(function (n) {
+      return '<tr class="clickable" data-open-news="' + App.esc(n.newsId) + '">' +
+        '<td><div class="cell-title">' + App.esc(n.title) + '</div>' +
+        '<div class="cell-sub">' + App.esc(n.newsId) + ' · ' + App.esc(n.categoryName) + '</div></td>' +
+        '<td>' + App.esc(n.authorName) + '</td>' +
+        '<td>' + App.statusPill(n.statusLabel, n.statusColor) + '</td>' +
+        '<td class="cell-sub">' + App.esc(n.updatedAt) + '</td></tr>';
+    }).join('');
+
+    return '<section class="card section">' +
+      '<div class="card-head"><h2>' + heading + '</h2>' +
+      '<span class="pill" style="--pill-color:var(--accent-color)">' +
+      data.actionQueue.length + '</span></div>' +
+      '<div class="table-wrap"><table><thead><tr>' +
+      '<th>Tajuk</th><th>Penulis</th><th>Status</th><th>Kemas kini</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+  },
+
+  trendSection: function (data) {
+    var max = data.trend.reduce(function (m, b) {
+      return Math.max(m, b.submitted, b.published);
+    }, 1);
+
+    var cols = data.trend.map(function (b) {
+      var hs = Math.round((b.submitted / max) * 130);
+      var hp = Math.round((b.published / max) * 130);
+      return '<div class="trend-col"><div class="trend-bars">' +
+        '<div class="trend-bar" style="height:' + hs + 'px;background:var(--secondary-color)" ' +
+        'title="Dihantar: ' + b.submitted + '"></div>' +
+        '<div class="trend-bar" style="height:' + hp + 'px;background:var(--accent-color)" ' +
+        'title="Diterbitkan: ' + b.published + '"></div>' +
+        '</div><div class="trend-label">' + App.esc(b.label) + '</div></div>';
+    }).join('');
+
+    return '<section class="card"><div class="card-head"><h2>Trend bulanan</h2></div>' +
+      '<div class="card-pad"><div class="trend">' + cols + '</div>' +
+      '<div class="legend" style="margin-top:12px">' +
+      '<span><i class="dot" style="background:var(--secondary-color)"></i>Dihantar</span>' +
+      '<span><i class="dot" style="background:var(--accent-color)"></i>Diterbitkan</span>' +
+      '</div></div></section>';
+  },
+
+  breakdownSection: function (data) {
+    if (!data.statusBreakdown.length) {
+      return '<section class="card"><div class="card-head"><h2>Taburan status</h2></div>' +
+        App.emptyState('Belum ada data', 'Berita pertama akan dipaparkan di sini.') + '</section>';
+    }
+
+    var total = data.statusBreakdown.reduce(function (s, b) { return s + b.count; }, 0);
+    var rows = data.statusBreakdown.map(function (b) {
+      var pct = Math.round((b.count / total) * 100);
+      return '<div class="breakdown-row">' +
+        '<span class="small">' + App.esc(b.label) + '</span>' +
+        '<div class="breakdown-track"><div class="breakdown-fill" style="width:' + pct +
+        '%;background:' + App.esc(b.color) + '"></div></div>' +
+        '<span class="small mono" style="text-align:right">' + b.count + '</span></div>';
+    }).join('');
+
+    return '<section class="card"><div class="card-head"><h2>Taburan status</h2></div>' +
+      '<div class="card-pad"><div class="breakdown">' + rows + '</div></div></section>';
+  },
+
+  recentSection: function (data) {
+    if (!data.recent.length) return '';
+    var rows = data.recent.map(function (n) {
+      return '<tr class="clickable" data-open-news="' + App.esc(n.newsId) + '">' +
+        '<td><div class="cell-title">' + App.esc(n.title) + '</div>' +
+        '<div class="cell-sub">' + App.esc(n.authorName) + '</div></td>' +
+        '<td>' + App.statusPill(n.statusLabel, n.statusColor) + '</td>' +
+        '<td class="cell-sub">' + App.esc(n.updatedAt) + '</td></tr>';
+    }).join('');
+
+    return '<section class="card section"><div class="card-head"><h2>Aktiviti terkini</h2>' +
+      '<span class="spacer"></span><span class="small muted">Dijana ' +
+      App.esc(data.generatedAt) + '</span></div>' +
+      '<div class="table-wrap"><table><thead><tr>' +
+      '<th>Tajuk</th><th>Status</th><th>Kemas kini</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+  }
+};
+</script>

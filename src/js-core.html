@@ -1,0 +1,1063 @@
+<script>
+/* ============================================================================
+   js-core.html — teras aplikasi klien
+   Tanggungjawab: panggilan API, penghalaan, tema daripada Global Settings,
+   komponen kongsi (toast, modal, jadual, pagination) dan pengurusan keadaan.
+   ========================================================================= */
+
+var App = (function () {
+
+  var state = {
+    user: null,
+    settings: {},
+    categories: [],
+    statuses: [],
+    permissions: {},
+    unread: 0,
+    themeMode: 'light',
+    page: 'dashboard',
+    params: {}
+  };
+
+  /* ------------------------------------------------------------------ API */
+
+  /** Panggil api(action, payload) di server. Sentiasa mengembalikan Promise. */
+  function call(action, payload) {
+    payload = payload || {};
+    // Beritahu server mod paparan supaya warna status yang dijana sepadan
+    if (document.documentElement.getAttribute('data-theme')) {
+      payload.renderMode = document.documentElement.getAttribute('data-theme');
+    }
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res) return reject(new Error('Tiada respons dari pelayan.'));
+          if (res.ok) return resolve(res.data);
+          var err = new Error(res.error.message);
+          err.code = res.error.code;
+          reject(err);
+        })
+        .withFailureHandler(function (e) {
+          reject(new Error(e && e.message ? e.message : 'Sambungan ke pelayan terputus.'));
+        })
+        .api(action, payload);
+    });
+  }
+
+  /* -------------------------------------------------------------- Helpers */
+
+  function esc(text) {
+    return String(text === null || text === undefined ? '' : text)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  function h(html) {
+    var t = document.createElement('template');
+    t.innerHTML = String(html).trim();
+    return t.content.firstElementChild;
+  }
+
+  function on(root, selector, event, handler) {
+    (root || document).addEventListener(event, function (e) {
+      var target = e.target.closest(selector);
+      if (target && (!root || root.contains(target))) handler(e, target);
+    });
+  }
+
+  function debounce(fn, wait) {
+    var timer;
+    return function () {
+      var args = arguments, ctx = this;
+      clearTimeout(timer);
+      timer = setTimeout(function () { fn.apply(ctx, args); }, wait || 320);
+    };
+  }
+
+  function statusPill(label, color) {
+    return '<span class="pill" style="--pill-color:' + esc(color) + '">' + esc(label) + '</span>';
+  }
+
+  function fileToBase64(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        resolve({
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          data: String(reader.result).split(',')[1]
+        });
+      };
+      reader.onerror = function () { reject(new Error('Gagal membaca fail ' + file.name)); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* ------------------------------------------------------------- Ikon SVG */
+
+  /**
+   * Pustaka ikon bergaya Lucide. Satu definisi, digunakan di seluruh UI —
+   * saiz dan warna diwarisi daripada konteks, jadi tiada ikon perlu
+   * ditulis semula dalam setiap paparan.
+   */
+  var ICONS = {
+    home:      '<path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/>',
+    news:      '<rect x="3" y="4" width="14" height="16" rx="2"/><path d="M17 8h3a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2h-2"/><path d="M6.5 8.5h7M6.5 12h7M6.5 15.5h4"/>',
+    review:    '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v15l-8-4-8 4Z"/><path d="m9 10 2 2 4-4"/>',
+    bell:      '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+    users:     '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16.5 5.2a3.5 3.5 0 0 1 0 5.6M17.5 20a6.4 6.4 0 0 0-2-4.6"/>',
+    settings:  '<circle cx="12" cy="12" r="3"/><path d="M19.4 14.5a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.3a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7h-.3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.8 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.3a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1Z"/>',
+    image:     '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="m4 17.5 5-4.5 4.5 4 3-2.5L20 18"/>',
+    folder:    '<path d="M3 7.5A2 2 0 0 1 5 5.5h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    grid:      '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>',
+    chart:     '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    trend:     '<path d="m3 16 5.5-5.5 4 4L21 6"/><path d="M15.5 6H21v5.5"/>',
+    plus:      '<path d="M12 5v14M5 12h14"/>',
+    upload:    '<path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/>',
+    arrow:     '<path d="M5 12h13M12 5.5 18.5 12 12 18.5"/>',
+    calendar:  '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>',
+    clock:     '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/>',
+    eye:       '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>',
+    search:    '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+    globe:     '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5a13 13 0 0 1 0 17 13 13 0 0 1 0-17Z"/>',
+    cap:       '<path d="m12 4.5 9.5 4.5L12 13.5 2.5 9Z"/><path d="M6.5 11v4.5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V11"/>',
+    laptop:    '<rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2.5 19.5h19"/>',
+    building:  '<rect x="4.5" y="3" width="15" height="18" rx="2"/><path d="M9 7.5h2M13 7.5h2M9 11.5h2M13 11.5h2M10.5 21v-4h3v4"/>',
+    book:      '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v18H5.5A1.5 1.5 0 0 1 4 19.5Z"/><path d="M8 3v18"/>',
+    headset:   '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="13.5" width="4" height="6" rx="1.6"/><rect x="17.5" y="13.5" width="4" height="6" rx="1.6"/><path d="M20 19.5v.5a2.5 2.5 0 0 1-2.5 2.5H13"/>',
+    logout:    '<path d="M9.5 20H5.5A1.5 1.5 0 0 1 4 18.5v-13A1.5 1.5 0 0 1 5.5 4h4"/><path d="M15 16.5 19.5 12 15 7.5"/><path d="M19.5 12H9"/>',
+    inbox:     '<path d="M3.5 13.5h4l1.5 3h6l1.5-3h4"/><path d="M5.6 5.4 3.5 13.5v4A1.5 1.5 0 0 0 5 19h14a1.5 1.5 0 0 0 1.5-1.5v-4L18.4 5.4A2 2 0 0 0 16.5 4h-9a2 2 0 0 0-1.9 1.4Z"/>'
+  };
+
+  /**
+   * Hasilkan SVG bagi satu ikon.
+   * @param {string} name kunci dalam ICONS
+   * @param {number} size saiz dalam piksel
+   * @param {string} cls kelas CSS tambahan
+   */
+  function icon(name, size, cls) {
+    var path = ICONS[name] || ICONS.grid;
+    var s = size || 18;
+    return '<svg class="' + (cls || '') + '" viewBox="0 0 24 24" width="' + s +
+      '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + path + '</svg>';
+  }
+
+  /* ------------------------------------------------------ Butang memuat */
+
+  /**
+   * Balut satu operasi async dengan keadaan memuat pada butang.
+   * Butang dinyahaktifkan dan menunjukkan pemutar sehingga selesai.
+   */
+  function withLoading(button, promiseFactory) {
+    if (!button) return promiseFactory();
+    button.classList.add('is-loading');
+    button.disabled = true;
+    return promiseFactory().then(function (result) {
+      return result;
+    }).catch(function (err) {
+      throw err;
+    }).then(function (result) {
+      button.classList.remove('is-loading');
+      button.disabled = false;
+      return result;
+    }, function (err) {
+      button.classList.remove('is-loading');
+      button.disabled = false;
+      throw err;
+    });
+  }
+
+  /* ------------------------------------------------ Maklum balas borang */
+
+  /**
+   * Papar mesej ralat atau kejayaan di atas borang.
+   * Digunakan bersama toast: toast untuk pengesahan pantas, panel ini untuk
+   * ralat yang pengguna perlu baca sambil membetulkan medan.
+   */
+  function formFeedback(mount, kind, message) {
+    if (!mount) return;
+    if (!message) { mount.innerHTML = ''; return; }
+    mount.innerHTML = '<div class="form-feedback ' + kind + '">' +
+      icon(kind === 'error' ? 'bell' : 'review', 16) +
+      '<span>' + esc(message) + '</span></div>';
+    mount.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  /** Tandakan medan sebagai tidak sah dan papar mesej di bawahnya */
+  function markInvalid(input, message) {
+    if (!input) return;
+    input.classList.add('invalid');
+    input.setAttribute('aria-invalid', 'true');
+    var field = input.closest('.field');
+    if (field) {
+      var err = field.querySelector('.error');
+      if (!err) {
+        err = document.createElement('span');
+        err.className = 'error';
+        field.appendChild(err);
+      }
+      err.textContent = message || '';
+    }
+  }
+
+  /** Kosongkan semua tanda tidak sah dalam satu kawasan */
+  function clearInvalid(root) {
+    (root || document).querySelectorAll('.invalid').forEach(function (n) {
+      n.classList.remove('invalid');
+      n.removeAttribute('aria-invalid');
+    });
+    (root || document).querySelectorAll('.field .error').forEach(function (n) {
+      n.textContent = '';
+    });
+  }
+
+  /* -------------------------------------------------------- Kiraan animasi */
+
+  /**
+   * Animasikan nombor dari 0 ke nilai akhir. Dipanggil oleh kad KPI.
+   * Menghormati MOTION_ENABLED dan prefers-reduced-motion — jika gerakan
+   * dimatikan, nilai akhir ditulis terus tanpa animasi.
+   */
+  function countUp(node, target, duration) {
+    target = Number(target) || 0;
+
+    var motionOff = document.documentElement.getAttribute('data-motion') === 'off' ||
+      (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+    if (motionOff || !state.settings.KPI_COUNT_ANIMATION || target === 0) {
+      node.textContent = String(target);
+      return;
+    }
+
+    var dur = duration || 700;
+    var start = null;
+
+    function frame(timestamp) {
+      if (start === null) start = timestamp;
+      var progress = Math.min((timestamp - start) / dur, 1);
+      // easeOutCubic — pantas di awal, perlahan menghampiri nilai akhir
+      var eased = 1 - Math.pow(1 - progress, 3);
+      node.textContent = String(Math.round(target * eased));
+      if (progress < 1) requestAnimationFrame(frame);
+      else node.textContent = String(target);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* --------------------------------------------------------------- Toasts */
+
+  function toast(message, kind) {
+    var node = h('<div class="toast ' + (kind || 'info') + '">' + esc(message) + '</div>');
+    el('toasts').appendChild(node);
+    setTimeout(function () {
+      node.style.opacity = '0';
+      setTimeout(function () { node.remove(); }, 200);
+    }, kind === 'error' ? 6500 : 3800);
+  }
+
+  function fail(err) {
+    toast(err && err.message ? err.message : 'Ralat tidak dijangka.', 'error');
+    console.error(err);
+  }
+
+  /* ---------------------------------------------------------------- Modal */
+
+  var modalOnClose = null;
+
+  function openModal(options) {
+    el('modalTitle').textContent = options.title || '';
+    el('modalBody').innerHTML = options.body || '';
+    el('modalFoot').innerHTML = '';
+    el('modalRoot').querySelector('.modal').classList.toggle('wide', !!options.wide);
+
+    (options.buttons || []).forEach(function (b) {
+      var btn = h('<button class="btn ' + (b.className || 'btn-ghost') + '">' +
+        esc(b.label) + '</button>');
+      btn.addEventListener('click', function () { b.onClick(btn); });
+      el('modalFoot').appendChild(btn);
+    });
+
+    modalOnClose = options.onClose || null;
+    el('modalRoot').hidden = false;
+
+    var focusable = el('modalBody').querySelector('input, select, textarea, button');
+    if (focusable) focusable.focus();
+  }
+
+  function closeModal() {
+    el('modalRoot').hidden = true;
+    el('modalBody').innerHTML = '';
+    if (modalOnClose) { var fn = modalOnClose; modalOnClose = null; fn(); }
+  }
+
+  /**
+   * Dialog pengesahan.
+   *
+   * Nota penting: closeModal() mencetuskan pengendali onClose. Jika onClose
+   * menyelesaikan janji dengan false, ia akan berbuat demikian SEBELUM
+   * resolve(true) sempat dipanggil — dan janji hanya boleh diselesaikan
+   * sekali. Jadi keputusan direkodkan dahulu dalam pemboleh ubah, dan janji
+   * diselesaikan hanya sekali, selepas modal benar-benar ditutup.
+   */
+  function confirmModal(title, message, confirmLabel, tone) {
+    return new Promise(function (resolve) {
+      var decision = false;
+      var settled = false;
+
+      function settle() {
+        if (settled) return;
+        settled = true;
+        resolve(decision);
+      }
+
+      openModal({
+        title: title,
+        body: '<p style="margin:0">' + esc(message) + '</p>',
+        buttons: [
+          { label: 'Batal', className: 'btn-ghost',
+            onClick: function () { decision = false; closeModal(); } },
+          { label: confirmLabel || 'Teruskan', className: 'btn-' + (tone || 'danger'),
+            onClick: function () { decision = true; closeModal(); } }
+        ],
+        onClose: settle
+      });
+    });
+  }
+
+  /* -------------------------------------------------------------- Loading */
+
+  function skeleton(rows) {
+    var out = '<div class="card card-pad grid" style="gap:10px">';
+    for (var i = 0; i < (rows || 5); i++) {
+      out += '<div class="skeleton" style="width:' + (100 - i * 7) + '%"></div>';
+    }
+    return out + '</div>';
+  }
+
+  function showLoading(container) {
+    (container || el('view')).innerHTML = skeleton(6);
+  }
+
+  /**
+   * Keadaan kosong berstruktur: ikon, tajuk, penerangan dan CTA pilihan.
+   * Setiap modul tanpa data menggunakan ini supaya rupanya konsisten.
+   */
+  function emptyState(title, message, actionHtml, iconName) {
+    return '<div class="empty">' +
+      '<div class="empty-icon">' + icon(iconName || 'inbox', 26) + '</div>' +
+      '<h3>' + esc(title) + '</h3><p>' + esc(message) + '</p>' +
+      (actionHtml || '') + '</div>';
+  }
+
+  /** Panel carta tanpa data — rangka paksi kekal supaya tidak kelihatan rosak */
+  function chartEmpty(title, message) {
+    return '<div class="chart-empty"><div class="chart-empty-inner">' +
+      '<strong>' + esc(title) + '</strong>' +
+      '<span>' + esc(message) + '</span></div></div>';
+  }
+
+  /* ----------------------------------------------------------- Pagination */
+
+  function pager(result, onPage) {
+    if (!result || result.totalPages <= 1) {
+      return { html: '<div class="pager"><span class="info">' + result.total +
+        ' rekod</span></div>', bind: function () { } };
+    }
+    var html = '<div class="pager">' +
+      '<span class="info">Halaman ' + result.page + ' daripada ' + result.totalPages +
+      ' · ' + result.total + ' rekod</span><span class="spacer"></span>' +
+      '<button class="btn btn-ghost btn-sm" data-pg="prev"' +
+      (result.page <= 1 ? ' disabled' : '') + '>Sebelum</button>' +
+      '<button class="btn btn-ghost btn-sm" data-pg="next"' +
+      (result.page >= result.totalPages ? ' disabled' : '') + '>Seterusnya</button></div>';
+
+    return {
+      html: html,
+      bind: function (root) {
+        root.querySelectorAll('[data-pg]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            onPage(b.dataset.pg === 'next' ? result.page + 1 : result.page - 1);
+          });
+        });
+      }
+    };
+  }
+
+  /* ---------------------------------------------------------------- Theme */
+
+  /**
+   * Mod berkesan: 'system' diterjemah kepada keutamaan pelayar.
+   */
+  function effectiveMode() {
+    if (state.themeMode !== 'system') return state.themeMode;
+    return (window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }
+
+  /**
+   * Suntik design token daripada Global Settings ke dalam :root.
+   * Satu set token untuk terang, satu lagi untuk gelap — kedua-duanya
+   * datang dari Global Settings, bukan ditulis dalam CSS.
+   */
+  function applyTheme(s) {
+    var root = document.documentElement.style;
+    var dark = effectiveMode() === 'dark';
+
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+
+    var tokens = dark ? {
+      '--primary-color': s.DARK_PRIMARY_COLOR,
+      '--secondary-color': s.DARK_SECONDARY_COLOR,
+      '--accent-color': s.DARK_ACCENT_COLOR,
+      '--background-color': s.DARK_BG_COLOR,
+      '--surface-color': s.DARK_SURFACE_COLOR,
+      '--text-color': s.DARK_TEXT_COLOR,
+      '--muted-color': s.DARK_MUTED_COLOR,
+      '--border-color': s.DARK_BORDER_COLOR,
+      '--success-color': s.DARK_SUCCESS_COLOR,
+      '--warning-color': s.DARK_WARNING_COLOR,
+      '--danger-color': s.DARK_DANGER_COLOR,
+      '--info-color': s.DARK_INFO_COLOR,
+      '--shadow': s.DARK_SHADOW
+    } : {
+      '--primary-color': s.PRIMARY_COLOR,
+      '--secondary-color': s.SECONDARY_COLOR,
+      '--accent-color': s.ACCENT_COLOR,
+      '--background-color': s.BG_COLOR,
+      '--surface-color': s.SURFACE_COLOR,
+      '--text-color': s.TEXT_COLOR,
+      '--muted-color': s.MUTED_COLOR,
+      '--border-color': s.BORDER_COLOR,
+      '--success-color': s.SUCCESS_COLOR,
+      '--warning-color': s.WARNING_COLOR,
+      '--danger-color': s.DANGER_COLOR,
+      '--info-color': s.INFO_COLOR,
+      '--shadow': s.SHADOW
+    };
+
+    // Token yang sama dalam kedua-dua mod
+    tokens['--radius'] = s.BORDER_RADIUS;
+    tokens['--font-family'] = s.FONT_FAMILY;
+    tokens['--font-family-heading'] = s.FONT_FAMILY_HEADING;
+    tokens['--base-font-size'] = s.BASE_FONT_SIZE;
+    tokens['--content-max-width'] = s.CONTENT_MAX_WIDTH;
+    tokens['--body-weight'] = s.BODY_FONT_WEIGHT;
+    tokens['--heading-weight'] = s.HEADING_FONT_WEIGHT;
+    tokens['--letter-spacing'] = s.LETTER_SPACING;
+    tokens['--sidebar-to'] = dark ? s.DARK_PRIMARY_COLOR : s.SIDEBAR_GRADIENT_TO;
+    tokens['--glass-blur'] = s.GLASS_BLUR;
+    tokens['--glass-opacity'] = s.GLASS_OPACITY;
+
+    Object.keys(tokens).forEach(function (k) {
+      if (tokens[k] !== undefined && tokens[k] !== null && tokens[k] !== '') {
+        root.setProperty(k, tokens[k]);
+      }
+    });
+
+    // Bendera kesan visual — CSS bertindak balas melalui atribut data pada <html>
+    var doc = document.documentElement;
+    doc.setAttribute('data-glass', s.GLASS_ENABLED ? 'on' : 'off');
+    doc.setAttribute('data-motion', s.MOTION_ENABLED === false ? 'off' : 'on');
+    doc.setAttribute('data-elevation', s.ELEVATION || 'soft');
+
+    if (s.DENSITY === 'compact') {
+      root.setProperty('--row-pad', '9px');
+      root.setProperty('--gap', '14px');
+    }
+
+    document.title = s.SYSTEM_SHORT_NAME || 'FKM News';
+    el('topbar').classList.toggle('sticky', s.HEADER_MODE === 'sticky');
+
+    el('brandName').textContent = s.SYSTEM_SHORT_NAME || '';
+    el('brandSub').textContent = s.FACULTY_NAME || '';
+    var mark = el('brandMark');
+    if (s.LOGO_URL) {
+      mark.style.backgroundImage = 'url(' + s.LOGO_URL + ')';
+      mark.textContent = '';
+    } else {
+      mark.textContent = (s.SYSTEM_SHORT_NAME || 'FN').replace(/[^A-Za-z]/g, '')
+        .substring(0, 2).toUpperCase();
+    }
+
+    el('cmdTrigger').hidden = !s.COMMAND_PALETTE;
+
+    var btn = el('themeBtn');
+    btn.hidden = !s.THEME_TOGGLE_ENABLED;
+    btn.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    btn.setAttribute('aria-label', dark ? 'Tukar ke mod terang' : 'Tukar ke mod gelap');
+  }
+
+  /** Kitar mod dan simpan pilihan pengguna di server */
+  function toggleTheme() {
+    state.themeMode = effectiveMode() === 'dark' ? 'light' : 'dark';
+    applyTheme(state.settings);
+
+    // Warna status berbeza antara mod — muat semula paparan semasa
+    call('session.setTheme', { mode: state.themeMode }).catch(function () {
+      toast('Mod dipaparkan, tetapi pilihan tidak dapat disimpan.', 'warning');
+    });
+    navigate(state.page, state.params);
+  }
+
+  /** Ikut keutamaan sistem secara langsung apabila mod ialah 'system' */
+  function watchSystemTheme() {
+    if (!window.matchMedia) return;
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var handler = function () {
+      if (state.themeMode === 'system') applyTheme(state.settings);
+    };
+    if (mq.addEventListener) mq.addEventListener('change', handler);
+    else if (mq.addListener) mq.addListener(handler);
+  }
+
+  /* ----------------------------------------------------------------- Menu */
+
+  /**
+   * Menu dikumpulkan mengikut tujuan: membaca dahulu, kemudian mengurus,
+   * dan akhirnya pentadbiran. Setiap item ditapis mengikut kebenaran —
+   * penyembunyian ini untuk kejelasan UI sahaja; server tetap menguatkuasa.
+   */
+  function navItems() {
+    var s = state.settings;
+    var p = state.permissions;
+    var items = [
+      { page: 'portal', label: s.LABEL_PORTAL || 'Laman Berita', icon: 'home', section: '' },
+      { page: 'dashboard', label: s.LABEL_DASHBOARD || 'Papan Pemuka', icon: 'chart' }
+    ];
+
+    items.push({ page: 'news-list', label: 'Pengurusan Berita', icon: 'news', section: 'Kerja' });
+    items.push({ page: 'media', label: 'Media', icon: 'image' });
+
+    if (p['review.admin'] || p['review.editor']) {
+      items.push({ page: 'review', label: s.LABEL_REVIEW_QUEUE || 'Giliran Semakan', icon: 'review' });
+    }
+    items.push({ page: 'notifications', label: 'Notifikasi', icon: 'bell', badge: 'unread' });
+
+    if (p['user.manage']) {
+      items.push({ page: 'users', label: 'Pengguna', icon: 'users', section: 'Pentadbiran' });
+    }
+    if (p['settings.manage']) {
+      items.push({ page: 'settings', label: 'Tetapan', icon: 'settings',
+        section: p['user.manage'] ? '' : 'Pentadbiran' });
+    }
+
+    return items;
+  }
+
+  function renderNav() {
+    var nav = el('nav');
+    nav.innerHTML = '';
+
+    navItems().forEach(function (item) {
+      if (item.section) {
+        nav.appendChild(h('<div class="nav-section">' + esc(item.section) + '</div>'));
+      }
+      var badge = (item.badge === 'unread' && state.unread)
+        ? '<span class="count">' + state.unread + '</span>' : '';
+      var btn = h('<button class="nav-item" data-page="' + item.page + '" title="' +
+        esc(item.label) + '">' + icon(item.icon, 19, 'nav-icon') +
+        '<span class="nav-label">' + esc(item.label) + '</span>' + badge + '</button>');
+      btn.addEventListener('click', function () {
+        navigate(item.page);
+        closeNav();
+      });
+      nav.appendChild(btn);
+    });
+    highlightNav();
+  }
+
+  /* ------------------------------------------------------ Kuncup sidebar */
+
+  function toggleCollapse() {
+    var shell = el('shell');
+    var collapsed = shell.classList.toggle('collapsed');
+    var btn = el('collapseBtn');
+    btn.setAttribute('aria-label', collapsed ? 'Kembangkan menu' : 'Kuncupkan menu');
+    btn.querySelector('.nav-label').textContent = collapsed ? 'Kembangkan' : 'Kuncupkan';
+    try { localStorage.setItem('FKMNEWS_SIDEBAR', collapsed ? '1' : '0'); } catch (e) { }
+  }
+
+  function restoreCollapse() {
+    if (!state.settings.SIDEBAR_COLLAPSIBLE) return;
+    el('collapseBtn').hidden = false;
+    var saved = null;
+    try { saved = localStorage.getItem('FKMNEWS_SIDEBAR'); } catch (e) { }
+    if (saved === '1' || state.settings.SIDEBAR_MODE === 'collapsed') {
+      el('shell').classList.add('collapsed');
+      el('collapseBtn').querySelector('.nav-label').textContent = 'Kembangkan';
+    }
+  }
+
+  /* ------------------------------------------------------- Menu profil */
+
+  function initials(name) {
+    return String(name || '?').trim().split(/\s+/).slice(0, 2)
+      .map(function (w) { return w.charAt(0); }).join('').toUpperCase();
+  }
+
+  function renderProfile() {
+    el('avatar').textContent = initials(state.user.name);
+    el('profileName').textContent = state.user.name;
+    el('profileRole').textContent = roleLabel(state.user.role);
+
+    var menu = el('profileMenu');
+    menu.innerHTML =
+      '<div class="dropdown-head">' +
+        '<div class="profile-name">' + esc(state.user.name) + '</div>' +
+        '<div class="dropdown-email">' + esc(state.user.email) + '</div>' +
+      '</div>' +
+      '<button class="dropdown-item" data-go="notifications">' + icon('bell', 16) +
+        'Notifikasi</button>' +
+      (can('settings.manage')
+        ? '<button class="dropdown-item" data-go="settings">' + icon('settings', 16) +
+          'Tetapan sistem</button>' : '') +
+      (state.settings.THEME_TOGGLE_ENABLED
+        ? '<button class="dropdown-item" data-theme-toggle="1">' + icon('image', 16) +
+          (effectiveMode() === 'dark' ? 'Mod terang' : 'Mod gelap') + '</button>' : '') +
+      roleSwitcherHtml();
+
+    menu.querySelectorAll('[data-go]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        closeProfile();
+        navigate(b.dataset.go);
+      });
+    });
+    var themeItem = menu.querySelector('[data-theme-toggle]');
+    if (themeItem) themeItem.addEventListener('click', function () {
+      closeProfile();
+      toggleTheme();
+    });
+
+    menu.querySelectorAll('[data-role]').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        setActingRole(chip.dataset.role);
+      });
+    });
+  }
+
+  /* ------------------------------------------------------- Peranan ujian */
+
+  /**
+   * Pemilih peranan hanya dipaparkan kepada ADMIN sebenar, dan hanya apabila
+   * mod ujian dihidupkan. Identiti tidak bertukar — hanya peranan.
+   */
+  function roleSwitcherHtml() {
+    if (!state.settings.TEST_MODE_ENABLED) return '';
+    if (state.user.realRole !== 'ADMIN') return '';
+
+    var roles = [
+      { value: 'AUTHOR', label: 'Penulis' },
+      { value: 'ADMIN', label: 'Pentadbir' },
+      { value: 'EDITOR', label: 'Editor' }
+    ];
+
+    return '<div class="role-switch">' +
+      '<div class="role-switch-label">Mod ujian — lihat sistem sebagai:</div>' +
+      '<div class="role-switch-row">' + roles.map(function (r) {
+        return '<button class="role-chip" data-role="' + r.value + '" aria-pressed="' +
+          (state.user.role === r.value ? 'true' : 'false') + '">' +
+          esc(r.label) + '</button>';
+      }).join('') + '</div></div>';
+  }
+
+  function setActingRole(role) {
+    if (role === state.user.role) { closeProfile(); return; }
+
+    call('session.setActingRole', { role: role }).then(function () {
+      toast('Bertukar kepada peranan ' + roleLabel(role) + '. Memuat semula…', 'success');
+      setTimeout(function () { window.location.reload(); }, 700);
+    }).catch(fail);
+  }
+
+  /** Jalur amaran apabila peranan semasa bukan peranan sebenar */
+  function renderActingBanner() {
+    var banner = el('actingBanner');
+    if (!state.user.isActing) { banner.hidden = true; return; }
+
+    banner.innerHTML =
+      icon('review', 16) +
+      '<span>Mod ujian aktif. Anda melihat sistem sebagai <strong>' +
+      esc(roleLabel(state.user.role)) + '</strong>, bukan peranan sebenar anda (' +
+      esc(roleLabel(state.user.realRole)) + ').</span>' +
+      '<button id="exitActing">Kembali kepada ' + esc(roleLabel(state.user.realRole)) +
+      '</button>';
+    banner.hidden = false;
+
+    banner.querySelector('#exitActing').addEventListener('click', function () {
+      setActingRole(state.user.realRole);
+    });
+  }
+
+  function openProfile() {
+    renderProfile();
+    el('profileMenu').hidden = false;
+    el('profileBtn').setAttribute('aria-expanded', 'true');
+  }
+
+  function closeProfile() {
+    el('profileMenu').hidden = true;
+    el('profileBtn').setAttribute('aria-expanded', 'false');
+  }
+
+  function highlightNav() {
+    el('nav').querySelectorAll('.nav-item').forEach(function (b) {
+      if (b.dataset.page === state.page) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+  }
+
+  function closeNav() {
+    el('shell').classList.remove('nav-open');
+    el('scrim').hidden = true;
+  }
+
+  function openNav() {
+    el('shell').classList.add('nav-open');
+    el('scrim').hidden = false;
+  }
+
+  /* ------------------------------------------------------- Palet arahan */
+
+  var cmd = {
+    open: false,
+    items: [],
+    filtered: [],
+    index: 0,
+    searchToken: 0
+  };
+
+  /** Arahan navigasi tetap, ditapis mengikut kebenaran pengguna */
+  function baseCommands() {
+    var list = [];
+    navItems().forEach(function (item) {
+      list.push({
+        group: 'Halaman', label: item.label, hint: 'Buka',
+        run: function () { navigate(item.page); }
+      });
+    });
+
+    if (can('news.create')) {
+      list.push({
+        group: 'Tindakan', label: 'Tulis berita baharu', hint: 'Cipta',
+        run: function () { navigate('news-form', { mode: 'create' }); }
+      });
+    }
+    if (state.settings.THEME_TOGGLE_ENABLED) {
+      list.push({
+        group: 'Tindakan',
+        label: effectiveMode() === 'dark' ? 'Tukar ke mod terang' : 'Tukar ke mod gelap',
+        hint: 'Paparan',
+        run: toggleTheme
+      });
+    }
+    return list;
+  }
+
+  function openCommand() {
+    if (!state.settings.COMMAND_PALETTE) return;
+    cmd.open = true;
+    cmd.items = baseCommands();
+    cmd.filtered = cmd.items;
+    cmd.index = 0;
+    el('cmdRoot').hidden = false;
+    el('cmdInput').value = '';
+    renderCommandList();
+    el('cmdInput').focus();
+  }
+
+  function closeCommand() {
+    cmd.open = false;
+    el('cmdRoot').hidden = true;
+  }
+
+  function renderCommandList() {
+    var list = el('cmdList');
+
+    if (!cmd.filtered.length) {
+      list.innerHTML = '<div class="cmd-empty">Tiada padanan. Cuba kata kunci lain.</div>';
+      return;
+    }
+
+    var html = '';
+    var lastGroup = null;
+    cmd.filtered.forEach(function (item, i) {
+      if (item.group !== lastGroup) {
+        html += '<div class="cmd-group-label">' + esc(item.group) + '</div>';
+        lastGroup = item.group;
+      }
+      html += '<button class="cmd-item" role="option" data-i="' + i + '" aria-selected="' +
+        (i === cmd.index ? 'true' : 'false') + '">' +
+        '<span>' + esc(item.label) + '</span>' +
+        (item.hint ? '<span class="cmd-sub">' + esc(item.hint) + '</span>' : '') +
+        '</button>';
+    });
+    list.innerHTML = html;
+
+    list.querySelectorAll('.cmd-item').forEach(function (node) {
+      node.addEventListener('click', function () {
+        runCommand(Number(node.dataset.i));
+      });
+    });
+
+    var active = list.querySelector('[aria-selected="true"]');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  }
+
+  function runCommand(i) {
+    var item = cmd.filtered[i];
+    if (!item) return;
+    closeCommand();
+    item.run();
+  }
+
+  function moveCommand(delta) {
+    if (!cmd.filtered.length) return;
+    cmd.index = (cmd.index + delta + cmd.filtered.length) % cmd.filtered.length;
+    renderCommandList();
+  }
+
+  /** Tapis arahan tetap, dan cari berita di server apabila query cukup panjang */
+  function filterCommand(query) {
+    var q = String(query || '').trim().toLowerCase();
+    cmd.index = 0;
+
+    if (!q) {
+      cmd.filtered = cmd.items;
+      renderCommandList();
+      return;
+    }
+
+    cmd.filtered = cmd.items.filter(function (item) {
+      return item.label.toLowerCase().indexOf(q) !== -1;
+    });
+    renderCommandList();
+
+    if (q.length < 2) return;
+
+    var token = ++cmd.searchToken;
+    call('news.list', { filters: { search: q }, page: 1, pageSize: 6 })
+      .then(function (result) {
+        // Abaikan hasil yang sudah ketinggalan zaman
+        if (token !== cmd.searchToken || !cmd.open) return;
+
+        var newsItems = result.items.map(function (n) {
+          return {
+            group: 'Berita', label: n.title, hint: n.statusLabel,
+            run: function () { navigate('news-detail', { newsId: n.newsId }); }
+          };
+        });
+        cmd.filtered = cmd.filtered.concat(newsItems);
+        renderCommandList();
+      })
+      .catch(function () { /* carian gagal — senarai tetap kekal berguna */ });
+  }
+
+  function bindCommand() {
+    el('cmdTrigger').addEventListener('click', openCommand);
+
+    el('cmdRoot').addEventListener('click', function (e) {
+      if (e.target.closest('[data-cmd-close]')) closeCommand();
+    });
+
+    el('cmdInput').addEventListener('input', debounce(function (e) {
+      filterCommand(e.target.value);
+    }, 180));
+
+    el('cmdInput').addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveCommand(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); moveCommand(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); runCommand(cmd.index); }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      var isK = e.key === 'k' || e.key === 'K';
+      if ((e.ctrlKey || e.metaKey) && isK) {
+        e.preventDefault();
+        cmd.open ? closeCommand() : openCommand();
+        return;
+      }
+      if (e.key === 'Escape' && cmd.open) { e.preventDefault(); closeCommand(); }
+    });
+  }
+
+  /* --------------------------------------------------------------- Router */
+
+  var views = {};
+
+  function navigate(page, params) {
+    state.page = page;
+    state.params = params || {};
+    highlightNav();
+
+    var view = views[page];
+    if (!view) {
+      el('view').innerHTML = emptyState('Halaman tidak dijumpai',
+        'Pilih satu item dari menu di sebelah kiri.');
+      return;
+    }
+
+    el('pageTitle').textContent = view.title ? view.title() : page;
+    showLoading();
+
+    Promise.resolve()
+      .then(function () { return view.render(el('view'), state.params); })
+      .catch(function (err) {
+        fail(err);
+        el('view').innerHTML = '<div class="card">' +
+          emptyState('Tidak dapat memuatkan halaman', err.message || 'Cuba muat semula.') +
+          '</div>';
+      });
+
+    el('view').focus();
+  }
+
+  /* -------------------------------------------------------------- Polling */
+
+  function startPolling() {
+    var seconds = Number(state.settings.NOTIFICATION_POLL_SECONDS || 120);
+    if (!seconds || seconds < 30) return;
+    setInterval(function () {
+      call('session.ping').then(function (res) {
+        if (res.unread !== state.unread) {
+          state.unread = res.unread;
+          updateBell();
+          renderNav();
+        }
+      }).catch(function () { /* senyap — jangan ganggu pengguna */ });
+    }, seconds * 1000);
+  }
+
+  function updateBell() {
+    var badge = el('bellBadge');
+    badge.textContent = state.unread > 99 ? '99+' : state.unread;
+    badge.hidden = !state.unread;
+  }
+
+  /* ----------------------------------------------------------------- Boot */
+
+  function start() {
+    call('session.bootstrap').then(function (data) {
+      state.user = data.user;
+      state.settings = data.settings;
+      state.categories = data.categories;
+      state.statuses = data.statuses;
+      state.permissions = data.permissions;
+      state.unread = data.unreadNotifications;
+      state.themeMode = data.themeMode || 'light';
+
+      applyTheme(state.settings);
+      watchSystemTheme();
+      el('whoName').textContent = data.user.name;
+      el('whoRole').textContent = roleLabel(data.user.role);
+      updateBell();
+      renderNav();
+      renderProfile();
+      renderActingBanner();
+      restoreCollapse();
+
+      el('boot').hidden = true;
+      el('shell').hidden = false;
+
+      bindShell();
+      startPolling();
+
+      var boot = window.BOOT || {};
+      if (boot.id && (boot.page === 'news-detail' || boot.page === 'portal-article')) {
+        navigate(boot.page, { newsId: boot.id });
+      } else {
+        navigate(views[boot.page] ? boot.page : 'dashboard');
+      }
+
+    }).catch(function (err) {
+      el('boot').hidden = true;
+      el('shell').hidden = false;
+      el('nav').innerHTML = '';
+      views['login'].renderDenied(el('view'), err.message);
+    });
+  }
+
+  function bindShell() {
+    el('menuBtn').addEventListener('click', openNav);
+    el('scrim').addEventListener('click', closeNav);
+    el('bellBtn').addEventListener('click', function () { navigate('notifications'); });
+    el('themeBtn').addEventListener('click', toggleTheme);
+    el('collapseBtn').addEventListener('click', toggleCollapse);
+
+    el('profileBtn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      el('profileMenu').hidden ? openProfile() : closeProfile();
+    });
+    document.addEventListener('click', function (e) {
+      if (!el('profileMenu').hidden && !e.target.closest('.profile-wrap')) closeProfile();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !el('profileMenu').hidden) closeProfile();
+    });
+
+    bindCommand();
+
+    el('modalRoot').addEventListener('click', function (e) {
+      if (e.target.closest('[data-close]')) closeModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !el('modalRoot').hidden) closeModal();
+    });
+  }
+
+  function roleLabel(role) {
+    return { AUTHOR: 'Penulis', ADMIN: 'Pentadbir', EDITOR: 'Editor' }[role] || role;
+  }
+
+  function can(permission) { return !!state.permissions[permission]; }
+
+  function categoryName(id) {
+    var found = state.categories.filter(function (c) { return c.categoryId === id; })[0];
+    return found ? found.categoryName : '—';
+  }
+
+  /* ------------------------------------------------------------- Exports */
+
+  return {
+    state: state,
+    views: views,
+    call: call,
+    start: start,
+    navigate: navigate,
+    esc: esc,
+    el: el,
+    h: h,
+    on: on,
+    debounce: debounce,
+    statusPill: statusPill,
+    fileToBase64: fileToBase64,
+    toast: toast,
+    fail: fail,
+    openModal: openModal,
+    closeModal: closeModal,
+    confirmModal: confirmModal,
+    showLoading: showLoading,
+    skeleton: skeleton,
+    emptyState: emptyState,
+    pager: pager,
+    can: can,
+    roleLabel: roleLabel,
+    categoryName: categoryName,
+    refreshNav: renderNav,
+    toggleTheme: toggleTheme,
+    countUp: countUp,
+    icon: icon,
+    chartEmpty: chartEmpty,
+    withLoading: withLoading,
+    formFeedback: formFeedback,
+    markInvalid: markInvalid,
+    clearInvalid: clearInvalid,
+    initials: initials,
+    openCommand: openCommand,
+    isDark: function () { return effectiveMode() === 'dark'; },
+    setUnread: function (n) { state.unread = n; updateBell(); renderNav(); }
+  };
+})();
+</script>

@@ -1,0 +1,473 @@
+<script>
+/* news-form.html — borang cipta/sunting berita.
+   Termasuk editor teks kaya dan galeri gambar berbilang:
+   muat naik banyak gambar sekaligus, pilih gambar utama,
+   tulis kapsyen, dan tandakan gambar untuk media sosial. */
+
+App.views['news-form'] = {
+
+  newsId: null,
+  images: [],
+
+  title: function () {
+    return this.newsId ? 'Sunting berita' : 'Berita baharu';
+  },
+
+  render: function (container, params) {
+    var self = this;
+    self.newsId = (params && params.newsId) || null;
+    self.images = [];
+
+    if (!self.newsId) {
+      container.innerHTML = self.form({});
+      self.bind(container, {});
+      return Promise.resolve();
+    }
+
+    return App.call('news.detail', { newsId: self.newsId }).then(function (news) {
+      if (!news.canEdit) {
+        container.innerHTML = '<div class="card">' + App.emptyState(
+          'Berita ini tidak boleh disunting',
+          'Berita hanya boleh disunting semasa status Draf atau Perlu Pembetulan.') + '</div>';
+        return;
+      }
+      self.images = news.images || [];
+      container.innerHTML = self.form(news);
+      self.bind(container, news);
+      App.el('pageTitle').textContent = 'Sunting berita';
+    });
+  },
+
+  form: function (n) {
+    var s = App.state.settings;
+    var categoryOptions = App.state.categories.map(function (c) {
+      return '<option value="' + App.esc(c.categoryId) + '"' +
+        (c.categoryId === n.categoryId ? ' selected' : '') + '>' +
+        App.esc(c.categoryName) + '</option>';
+    }).join('');
+
+    return '' +
+    '<div id="formFeedback"></div>' +
+    '<section class="card section card-pad">' +
+      '<div class="field">' +
+        '<label for="fTitle">Tajuk berita</label>' +
+        '<input type="text" id="fTitle" maxlength="' + s.MAX_TITLE_LENGTH + '" ' +
+        'value="' + App.esc(n.title || '') + '" placeholder="Tajuk yang jelas dan spesifik">' +
+        '<div class="counter" id="titleCount"></div>' +
+      '</div>' +
+
+      '<div class="field-row">' +
+        '<div class="field">' +
+          '<label for="fCategory">Kategori</label>' +
+          '<select id="fCategory"><option value="">Pilih kategori</option>' +
+          categoryOptions + '</select>' +
+        '</div>' +
+        '<div class="field">' +
+          '<label for="fEventDate">Tarikh peristiwa</label>' +
+          '<input type="date" id="fEventDate" value="' + App.esc(n.eventDateIso || '') + '">' +
+          '<span class="help">Tarikh program berlangsung, jika berkaitan.</span>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="field">' +
+        '<label for="fSummary">Ringkasan</label>' +
+        '<textarea id="fSummary" maxlength="' + s.MAX_SUMMARY_LENGTH + '" ' +
+        'style="min-height:76px" placeholder="Satu atau dua ayat yang merumuskan berita.">' +
+        App.esc(n.summary || '') + '</textarea>' +
+        '<div class="counter" id="summaryCount"></div>' +
+      '</div>' +
+
+      '<div class="field">' +
+        '<label for="fContent">Kandungan</label>' +
+        this.toolbar() +
+        '<div class="editor" id="fContent" contenteditable="true" role="textbox" ' +
+        'aria-multiline="true" aria-label="Kandungan berita">' + (n.content || '<p></p>') + '</div>' +
+        '<div class="counter" id="contentCount"></div>' +
+      '</div>' +
+
+      '<div class="field">' +
+        '<label for="fTags">Kata kunci</label>' +
+        '<input type="text" id="fTags" value="' + App.esc(n.tags || '') + '" ' +
+        'placeholder="Pisahkan dengan koma">' +
+      '</div>' +
+    '</section>' +
+
+    this.gallerySection() +
+
+    '<div class="row section">' +
+      '<button class="btn btn-ghost" id="cancelBtn">Batal</button>' +
+      '<span class="spacer"></span>' +
+      '<button class="btn" id="saveBtn">Simpan draf</button>' +
+      '<button class="btn btn-accent" id="saveSubmitBtn">Simpan dan hantar</button>' +
+    '</div>';
+  },
+
+  toolbar: function () {
+    if (!App.state.settings.ALLOW_RICH_TEXT) return '';
+    var buttons = [
+      ['bold', 'Tebal', 'B'], ['italic', 'Condong', 'I'],
+      ['insertUnorderedList', 'Senarai bullet', '• Senarai'],
+      ['insertOrderedList', 'Senarai bernombor', '1. Senarai'],
+      ['formatBlock:<h3>', 'Tajuk kecil', 'Tajuk'],
+      ['formatBlock:<p>', 'Perenggan biasa', 'Perenggan'],
+      ['removeFormat', 'Buang format', 'Bersihkan']
+    ];
+    return '<div class="editor-toolbar">' + buttons.map(function (b) {
+      return '<button type="button" data-cmd="' + b[0] + '" title="' + b[1] + '">' +
+        b[2] + '</button>';
+    }).join('') + '</div>';
+  },
+
+  gallerySection: function () {
+    var s = App.state.settings;
+    if (!s.FEATURE_ATTACHMENTS) return '';
+
+    return '<section class="card section">' +
+      '<div class="card-head"><h2>Galeri gambar</h2>' +
+      '<span class="spacer"></span>' +
+      '<span class="small muted" id="galleryCount"></span></div>' +
+      '<div class="card-pad">' +
+        '<p class="small muted" style="margin:0 0 12px">' +
+          'Muat naik sehingga ' + s.MAX_IMAGES + ' gambar. Gambar pertama menjadi gambar ' +
+          'utama secara lalai — tukar bila-bila masa. Gambar yang ditanda ' +
+          '“Untuk media sosial” akan dihantar ke Facebook dan Instagram.' +
+        '</p>' +
+        '<div class="dropzone" id="dropzone" tabindex="0" role="button" ' +
+        'aria-label="Muat naik gambar">' +
+          '<strong>Seret gambar ke sini</strong><br>' +
+          '<span class="small">atau klik untuk pilih fail · ' +
+          App.esc((s.ALLOWED_IMAGE_EXTENSIONS || []).join(', ')) +
+          ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu</span>' +
+        '</div>' +
+        '<input type="file" id="fileInput" accept="image/*" multiple hidden>' +
+        '<div class="gallery" id="gallery" style="margin-top:14px"></div>' +
+      '</div></section>';
+  },
+
+  /* ------------------------------------------------------------- Binding */
+
+  bind: function (container, n) {
+    var self = this;
+
+    var title = container.querySelector('#fTitle');
+    var summary = container.querySelector('#fSummary');
+    var content = container.querySelector('#fContent');
+
+    function counter(node, target, max) {
+      var len = (node.value !== undefined ? node.value : node.innerText).length;
+      target.textContent = len + ' / ' + max;
+      target.classList.toggle('over', len > max);
+    }
+
+    var s = App.state.settings;
+    var tc = container.querySelector('#titleCount');
+    var sc = container.querySelector('#summaryCount');
+    var cc = container.querySelector('#contentCount');
+
+    counter(title, tc, s.MAX_TITLE_LENGTH);
+    counter(summary, sc, s.MAX_SUMMARY_LENGTH);
+    counter(content, cc, s.MAX_CONTENT_LENGTH);
+
+    title.addEventListener('input', function () { counter(title, tc, s.MAX_TITLE_LENGTH); });
+    summary.addEventListener('input', function () { counter(summary, sc, s.MAX_SUMMARY_LENGTH); });
+    content.addEventListener('input', function () { counter(content, cc, s.MAX_CONTENT_LENGTH); });
+
+    // Tampal sebagai teks biasa supaya tiada HTML luar masuk ke editor
+    content.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+
+    container.querySelectorAll('.editor-toolbar button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var cmd = btn.dataset.cmd.split(':');
+        content.focus();
+        document.execCommand(cmd[0], false, cmd[1] || null);
+      });
+    });
+
+    container.querySelector('#cancelBtn').addEventListener('click', function () {
+      if (self.newsId) App.navigate('news-detail', { newsId: self.newsId });
+      else App.navigate('news-list');
+    });
+
+    container.querySelector('#saveBtn').addEventListener('click', function (e) {
+      self.save(container, false, e.target);
+    });
+    container.querySelector('#saveSubmitBtn').addEventListener('click', function (e) {
+      self.save(container, true, e.target);
+    });
+
+    if (container.querySelector('#dropzone')) this.bindGallery(container);
+  },
+
+  bindGallery: function (container) {
+    var self = this;
+    var zone = container.querySelector('#dropzone');
+    var input = container.querySelector('#fileInput');
+
+    zone.addEventListener('click', function () { input.click(); });
+    zone.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+    });
+
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) {
+        e.preventDefault(); zone.classList.add('dragging');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      zone.addEventListener(ev, function (e) {
+        e.preventDefault(); zone.classList.remove('dragging');
+      });
+    });
+
+    zone.addEventListener('drop', function (e) {
+      self.upload(container, Array.prototype.slice.call(e.dataTransfer.files));
+    });
+    input.addEventListener('change', function () {
+      self.upload(container, Array.prototype.slice.call(input.files));
+      input.value = '';
+    });
+
+    self.renderGallery(container);
+  },
+
+  /** Muat naik memerlukan artikel wujud — simpan draf dahulu jika perlu */
+  upload: function (container, files) {
+    var self = this;
+    if (!files.length) return;
+
+    var imageFiles = files.filter(function (f) { return /^image\//.test(f.type); });
+    if (!imageFiles.length) {
+      App.toast('Pilih fail imej sahaja.', 'warning');
+      return;
+    }
+
+    var ensure = self.newsId
+      ? Promise.resolve(self.newsId)
+      : self.persist(container, false).then(function (res) {
+          self.newsId = res.newsId;
+          App.toast('Draf disimpan supaya gambar boleh dilampirkan.');
+          return res.newsId;
+        });
+
+    var zone = container.querySelector('#dropzone');
+    zone.textContent = 'Memuat naik ' + imageFiles.length + ' gambar…';
+
+    ensure
+      .then(function (newsId) {
+        return Promise.all(imageFiles.map(App.fileToBase64)).then(function (encoded) {
+          return App.call('image.upload', { newsId: newsId, files: encoded });
+        });
+      })
+      .then(function (images) {
+        self.images = images;
+        self.renderGallery(container);
+        App.toast(imageFiles.length + ' gambar dimuat naik.', 'success');
+      })
+      .catch(App.fail)
+      .then(function () { self.resetZone(container); });
+  },
+
+  resetZone: function (container) {
+    var s = App.state.settings;
+    var zone = container.querySelector('#dropzone');
+    if (!zone) return;
+    zone.innerHTML = '<strong>Seret gambar ke sini</strong><br><span class="small">' +
+      'atau klik untuk pilih fail · ' +
+      App.esc((s.ALLOWED_IMAGE_EXTENSIONS || []).join(', ')) +
+      ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu</span>';
+  },
+
+  renderGallery: function (container) {
+    var self = this;
+    var grid = container.querySelector('#gallery');
+    var count = container.querySelector('#galleryCount');
+    if (!grid) return;
+
+    count.textContent = self.images.length + ' / ' + App.state.settings.MAX_IMAGES + ' gambar';
+
+    if (!self.images.length) {
+      grid.innerHTML = '<div style="grid-column:1/-1">' + App.emptyState(
+        'Belum ada gambar',
+        'Gambar pertama yang dimuat naik akan menjadi gambar utama secara automatik.',
+        '', 'image') + '</div>';
+      return;
+    }
+
+    grid.innerHTML = self.images.map(function (img) {
+      return '<div class="thumb' + (img.isFeatured ? ' is-featured' : '') + '">' +
+        (img.isFeatured ? '<span class="thumb-flag">Gambar utama</span>' : '') +
+        '<img src="' + App.esc(img.thumbUrl) + '" alt="' + App.esc(img.altText || img.fileName) + '">' +
+        '<div class="thumb-body">' +
+          '<span class="thumb-name" title="' + App.esc(img.fileName) + '">' +
+          App.esc(img.fileName) + ' · ' + App.esc(img.sizeLabel) + '</span>' +
+          '<input type="text" class="cap" data-id="' + App.esc(img.imageId) + '" ' +
+          'placeholder="Kapsyen" value="' + App.esc(img.caption) + '" ' +
+          'style="font-size:.78rem;padding:5px 8px">' +
+          '<label class="check small"><input type="checkbox" class="soc" data-id="' +
+          App.esc(img.imageId) + '"' + (img.isSelectedForSocial ? ' checked' : '') + '>' +
+          '<span>Untuk media sosial</span></label>' +
+          '<div class="thumb-actions">' +
+            (img.isFeatured ? '' :
+              '<button class="btn btn-ghost btn-sm feat" data-id="' + App.esc(img.imageId) +
+              '">Jadikan utama</button>') +
+            '<button class="btn btn-ghost btn-sm del" data-id="' + App.esc(img.imageId) +
+            '">Buang</button>' +
+          '</div>' +
+        '</div></div>';
+    }).join('');
+
+    grid.querySelectorAll('.feat').forEach(function (b) {
+      b.addEventListener('click', function () {
+        App.call('image.setFeatured', { imageId: b.dataset.id }).then(function (images) {
+          self.images = images;
+          self.renderGallery(container);
+          App.toast('Gambar utama dikemas kini.', 'success');
+        }).catch(App.fail);
+      });
+    });
+
+    grid.querySelectorAll('.del').forEach(function (b) {
+      b.addEventListener('click', function () {
+        App.confirmModal('Buang gambar',
+          'Gambar ini akan dialihkan ke tong sampah Drive.', 'Buang').then(function (yes) {
+          if (!yes) return;
+          App.call('image.remove', { imageId: b.dataset.id }).then(function (images) {
+            self.images = images;
+            self.renderGallery(container);
+            App.toast('Gambar dibuang.', 'success');
+          }).catch(App.fail);
+        });
+      });
+    });
+
+    grid.querySelectorAll('.soc').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        App.call('image.toggleSocial', { imageId: cb.dataset.id, selected: cb.checked })
+          .then(function (images) { self.images = images; })
+          .catch(function (err) { cb.checked = !cb.checked; App.fail(err); });
+      });
+    });
+
+    grid.querySelectorAll('.cap').forEach(function (input) {
+      input.addEventListener('change', App.debounce(function () {
+        App.call('image.update', {
+          imageId: input.dataset.id, patch: { caption: input.value }
+        }).then(function (images) { self.images = images; }).catch(App.fail);
+      }, 500));
+    });
+  },
+
+  /* -------------------------------------------------------------- Simpan */
+
+  collect: function (container) {
+    return {
+      title: container.querySelector('#fTitle').value.trim(),
+      categoryId: container.querySelector('#fCategory').value,
+      summary: container.querySelector('#fSummary').value.trim(),
+      content: container.querySelector('#fContent').innerHTML,
+      tags: container.querySelector('#fTags').value.trim(),
+      eventDate: container.querySelector('#fEventDate').value
+    };
+  },
+
+  /**
+   * Semakan pantas di klien supaya pengguna mendapat maklum balas serta-merta.
+   * Ini BUKAN lapisan keselamatan — server tetap mengesahkan semula setiap
+   * medan melalui Validation.validateNews().
+   */
+  validate: function (container, forSubmit) {
+    App.clearInvalid(container);
+    var s = App.state.settings;
+    var problems = [];
+
+    var title = container.querySelector('#fTitle');
+    if (!title.value.trim()) {
+      App.markInvalid(title, 'Tajuk diperlukan.');
+      problems.push('Tajuk diperlukan.');
+    } else if (title.value.length > s.MAX_TITLE_LENGTH) {
+      App.markInvalid(title, 'Melebihi ' + s.MAX_TITLE_LENGTH + ' aksara.');
+      problems.push('Tajuk terlalu panjang.');
+    }
+
+    if (forSubmit) {
+      var cat = container.querySelector('#fCategory');
+      if (!cat.value) {
+        App.markInvalid(cat, 'Pilih satu kategori.');
+        problems.push('Kategori diperlukan sebelum hantar.');
+      }
+      var summary = container.querySelector('#fSummary');
+      if (!summary.value.trim()) {
+        App.markInvalid(summary, 'Ringkasan diperlukan.');
+        problems.push('Ringkasan diperlukan sebelum hantar.');
+      }
+      var contentText = container.querySelector('#fContent').innerText.trim();
+      if (contentText.length < s.MIN_CONTENT_LENGTH) {
+        problems.push('Kandungan mesti sekurang-kurangnya ' +
+          s.MIN_CONTENT_LENGTH + ' aksara.');
+      }
+    }
+
+    return problems;
+  },
+
+  persist: function (container) {
+    var data = this.collect(container);
+    return this.newsId
+      ? App.call('news.update', { newsId: this.newsId, data: data })
+      : App.call('news.create', { data: data });
+  },
+
+  save: function (container, thenSubmit, button) {
+    var self = this;
+    var feedback = container.querySelector('#formFeedback');
+
+    var problems = self.validate(container, thenSubmit);
+    if (problems.length) {
+      App.formFeedback(feedback, 'error', problems.join(' '));
+      return;
+    }
+    App.formFeedback(feedback, '', '');
+
+    button.classList.add('is-loading');
+    button.disabled = true;
+
+    self.persist(container)
+      .then(function (res) {
+        self.newsId = res.newsId || self.newsId;
+        if (!thenSubmit) {
+          App.toast('Draf disimpan.', 'success');
+          App.navigate('news-detail', { newsId: self.newsId });
+          return;
+        }
+        return App.call('news.detail', { newsId: self.newsId }).then(function (news) {
+          var submit = news.availableActions.filter(function (a) {
+            return a.action === 'SUBMIT' || a.action === 'RESUBMIT';
+          })[0];
+          if (!submit) {
+            App.toast('Draf disimpan, tetapi belum boleh dihantar pada status ini.', 'warning');
+            App.navigate('news-detail', { newsId: self.newsId });
+            return;
+          }
+          return App.call('workflow.transition', {
+            newsId: self.newsId, action: submit.action
+          }).then(function () {
+            App.toast('Berita dihantar untuk semakan.', 'success');
+            App.navigate('news-detail', { newsId: self.newsId });
+          });
+        });
+      })
+      .catch(function (err) {
+        App.formFeedback(feedback, 'error', err.message);
+        App.toast('Berita tidak dapat disimpan.', 'error');
+      })
+      .then(function () {
+        button.classList.remove('is-loading');
+        button.disabled = false;
+      });
+  }
+};
+</script>

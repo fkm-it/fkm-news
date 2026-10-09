@@ -1,0 +1,205 @@
+<script>
+/* users.html — pengurusan pengguna (Admin sahaja).
+   Server tetap menguatkuasa 'user.manage'; menyembunyikan halaman ini
+   hanyalah kemudahan UI, bukan kawalan keselamatan. */
+
+App.views['users'] = {
+
+  page: 1,
+  filters: { search: '', role: '', status: '' },
+
+  title: function () { return 'Pengguna'; },
+
+  render: function (container) {
+    var self = this;
+    container.innerHTML =
+      '<section class="card section">' +
+        '<div class="panel-head">' +
+          '<span class="panel-icon">' + App.icon('users', 18) + '</span>' +
+          '<div><div class="panel-title">Pengguna sistem</div>' +
+          '<div class="panel-sub">Peranan menentukan capaian; kuatkuasa dibuat di server</div></div>' +
+          '<span class="spacer"></span>' +
+          '<button class="btn" id="addUser">' + App.icon('plus', 15) + 'Tambah pengguna</button>' +
+        '</div>' +
+        '<div class="toolbar">' +
+          '<span class="search-field">' + App.icon('search', 16) +
+          '<input type="search" id="uSearch" placeholder="Cari nama, e-mel atau jabatan…" ' +
+          'aria-label="Cari pengguna"></span>' +
+          '<select id="uRole" aria-label="Tapis peranan"><option value="">Semua peranan</option>' +
+            '<option value="AUTHOR">Penulis</option>' +
+            '<option value="ADMIN">Pentadbir</option>' +
+            '<option value="EDITOR">Editor</option></select>' +
+          '<select id="uStatus" aria-label="Tapis status"><option value="">Semua status</option>' +
+            '<option value="ACTIVE">Aktif</option>' +
+            '<option value="INACTIVE">Tidak aktif</option></select>' +
+        '</div>' +
+      '</section>' +
+      '<section class="card" id="userCard"></section>';
+
+    container.querySelector('#addUser').addEventListener('click', function () {
+      self.openForm(container, null);
+    });
+
+    var search = container.querySelector('#uSearch');
+    search.addEventListener('input', App.debounce(function () {
+      self.filters.search = search.value; self.page = 1; self.load(container);
+    }, 340));
+
+    ['uRole', 'uStatus'].forEach(function (id) {
+      var key = id === 'uRole' ? 'role' : 'status';
+      var node = container.querySelector('#' + id);
+      node.addEventListener('change', function () {
+        self.filters[key] = node.value; self.page = 1; self.load(container);
+      });
+    });
+
+    return self.load(container);
+  },
+
+  load: function (container) {
+    var self = this;
+    var card = container.querySelector('#userCard');
+    card.innerHTML = '<div class="card-pad skeleton-stack">' +
+      '<div class="skeleton skeleton-row"></div>'.repeat(5) + '</div>';
+
+    return App.call('user.list', {
+      filters: self.filters, page: self.page, pageSize: App.state.settings.PAGE_SIZE
+    }).then(function (result) {
+      if (!result.items.length) {
+        card.innerHTML = App.emptyState('Tiada pengguna dijumpai',
+          'Tiada rekod sepadan dengan penapis semasa. Kosongkan penapis, atau daftarkan pengguna baharu.',
+          '<button class="btn" id="emptyAddUser">Tambah pengguna</button>', 'users');
+        var eb = card.querySelector('#emptyAddUser');
+        if (eb) eb.addEventListener('click', function () { self.openForm(container, null); });
+        return;
+      }
+
+      var rows = result.items.map(function (u) {
+        var tone = u.status === 'ACTIVE' ? 'var(--success-color)' : 'var(--muted-color)';
+        return '<tr><td data-label="Nama"><div class="row" style="gap:10px;flex-wrap:nowrap">' +
+          '<span class="avatar">' + App.esc(App.initials(u.name)) + '</span>' +
+          '<span><div class="cell-title">' + App.esc(u.name) + '</div>' +
+          '<div class="cell-sub">' + App.esc(u.email) + '</div></span></div></td>' +
+          '<td data-label="Peranan">' + App.esc(App.roleLabel(u.role)) + '</td>' +
+          '<td data-label="Jabatan" class="cell-sub">' + App.esc(u.department || '—') + '</td>' +
+          '<td data-label="Status">' +
+          App.statusPill(u.status === 'ACTIVE' ? 'Aktif' : 'Tidak aktif', tone) + '</td>' +
+          '<td data-label="Log masuk" class="cell-sub">' + App.esc(u.lastLogin) + '</td>' +
+          '<td><span class="row-actions"><button class="btn btn-ghost btn-sm" data-edit="' +
+          App.esc(u.userId) + '">Sunting</button></span></td></tr>';
+      }).join('');
+
+      var p = App.pager(result, function (page) { self.page = page; self.load(container); });
+
+      card.innerHTML = '<div class="table-wrap"><table class="stacked"><thead><tr>' +
+        '<th>Nama</th><th>Peranan</th><th>Jabatan</th><th>Status</th><th>Log masuk</th><th></th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' + p.html;
+      p.bind(card);
+
+      card.querySelectorAll('[data-edit]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var user = result.items.filter(function (u) {
+            return u.userId === btn.dataset.edit;
+          })[0];
+          self.openForm(container, user);
+        });
+      });
+    });
+  },
+
+  openForm: function (container, user) {
+    var self = this;
+    var isNew = !user;
+    user = user || { name: '', email: '', role: 'AUTHOR', department: '',
+                     position: '', status: 'ACTIVE' };
+
+    function roleOption(value, label) {
+      return '<option value="' + value + '"' +
+        (user.role === value ? ' selected' : '') + '>' + label + '</option>';
+    }
+
+    App.openModal({
+      title: isNew ? 'Tambah pengguna' : 'Sunting pengguna',
+      body:
+        '<div id="userFeedback"></div>' +
+        (isNew
+          ? '<div class="field"><label for="uEmail">E-mel</label>' +
+            '<input type="email" id="uEmail" placeholder="nama@utm.my">' +
+            '<span class="help">Mesti e-mel Google yang digunakan untuk log masuk.</span></div>'
+          : '<div class="field"><label>E-mel</label><input type="email" value="' +
+            App.esc(user.email) + '" disabled></div>') +
+        '<div class="field"><label for="uName">Nama penuh</label>' +
+        '<input type="text" id="uName" value="' + App.esc(user.name) + '"></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label for="uRoleSel">Peranan</label>' +
+          '<select id="uRoleSel">' + roleOption('AUTHOR', 'Penulis') +
+          roleOption('ADMIN', 'Pentadbir') + roleOption('EDITOR', 'Editor') + '</select></div>' +
+          '<div class="field"><label for="uStatusSel">Status</label>' +
+          '<select id="uStatusSel">' +
+            '<option value="ACTIVE"' + (user.status === 'ACTIVE' ? ' selected' : '') + '>Aktif</option>' +
+            '<option value="INACTIVE"' + (user.status === 'INACTIVE' ? ' selected' : '') +
+            '>Tidak aktif</option></select></div>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label for="uDept">Jabatan</label>' +
+          '<input type="text" id="uDept" value="' + App.esc(user.department) + '"></div>' +
+          '<div class="field"><label for="uPos">Jawatan</label>' +
+          '<input type="text" id="uPos" value="' + App.esc(user.position) + '"></div>' +
+        '</div>',
+      buttons: [
+        { label: 'Batal', className: 'btn-ghost', onClick: App.closeModal },
+        { label: 'Simpan', className: 'btn', onClick: function (btn) {
+            var body = App.el('modalBody');
+            var feedback = body.querySelector('#userFeedback');
+            App.clearInvalid(body);
+
+            var nameInput = body.querySelector('#uName');
+            var data = {
+              name: nameInput.value.trim(),
+              role: body.querySelector('#uRoleSel').value,
+              status: body.querySelector('#uStatusSel').value,
+              department: body.querySelector('#uDept').value.trim(),
+              position: body.querySelector('#uPos').value.trim()
+            };
+
+            if (!data.name) {
+              App.markInvalid(nameInput, 'Nama diperlukan.');
+              App.formFeedback(feedback, 'error', 'Sila lengkapkan nama penuh.');
+              return;
+            }
+
+            if (isNew) {
+              var emailInput = body.querySelector('#uEmail');
+              data.email = emailInput.value.trim();
+              if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+                App.markInvalid(emailInput, 'E-mel tidak sah.');
+                App.formFeedback(feedback, 'error', 'Masukkan alamat e-mel Google yang sah.');
+                return;
+              }
+            }
+
+            App.formFeedback(feedback, '', '');
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+
+            var request = isNew
+              ? App.call('user.create', { data: data })
+              : App.call('user.update', { userId: user.userId, data: data });
+
+            request.then(function () {
+              App.closeModal();
+              App.toast(isNew ? 'Pengguna didaftarkan.' : 'Maklumat pengguna dikemas kini.',
+                'success');
+              self.load(container);
+            }).catch(function (err) {
+              App.formFeedback(feedback, 'error', err.message);
+            }).then(function () {
+              btn.classList.remove('is-loading');
+              btn.disabled = false;
+            });
+          } }
+      ]
+    });
+  }
+};
+</script>

@@ -1,0 +1,305 @@
+<script>
+/* dashboard.html — papan pemuka content-first.
+   Susunan sengaja: hero → tindakan → berita & aktiviti → statistik sokongan.
+   Berita mendahului nombor kerana itulah kerja sebenar pengguna;
+   statistik hanya konteks. */
+
+App.views['dashboard'] = {
+
+  title: function () {
+    return App.state.settings.LABEL_DASHBOARD || 'Papan Pemuka';
+  },
+
+  render: function (container) {
+    var self = this;
+
+    container.innerHTML = self.skeleton();
+
+    return App.call('dashboard.get', { filters: {} }).then(function (data) {
+      container.innerHTML =
+        '<div class="dash-top">' +
+          self.heroSection(data) +
+          self.quickActions(data) +
+        '</div>' +
+        self.queuePanel(data) +
+        '<div class="dash-split">' +
+          self.recentPanel(data) +
+          self.sidePanels(data) +
+        '</div>' +
+        self.metricSection(data);
+
+      self.bind(container, data);
+    });
+  },
+
+  /** Skeleton yang menyerupai susun atur sebenar, bukan jalur generik */
+  skeleton: function () {
+    return '<div class="dash-top">' +
+      '<div class="skeleton" style="height:148px;border-radius:var(--radius-lg)"></div>' +
+      '<div class="skeleton-stack">' +
+        '<div class="skeleton skeleton-row"></div>' +
+        '<div class="skeleton skeleton-row"></div>' +
+        '<div class="skeleton skeleton-row"></div>' +
+      '</div></div>' +
+      '<div class="skeleton skeleton-card section"></div>' +
+      '<div class="skeleton-grid section">' +
+        '<div class="skeleton skeleton-card"></div>' +
+        '<div class="skeleton skeleton-card"></div>' +
+        '<div class="skeleton skeleton-card"></div>' +
+      '</div>';
+  },
+
+  /* -------------------------------------------------------------- Hero */
+
+  heroSection: function (data) {
+    var name = String(App.state.user.name).split(' ')[0];
+    var hour = new Date().getHours();
+    var greet = hour < 12 ? 'Selamat pagi' : (hour < 19 ? 'Selamat petang' : 'Selamat malam');
+
+    var now = new Date();
+    var date = now.toLocaleDateString('ms-MY', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+    var time = now.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' });
+
+    var pending = data.actionQueue.length;
+
+    return '<section class="hero">' +
+      '<div class="hero-inner">' +
+        '<div>' +
+          '<span class="hero-eyebrow">' + App.esc(greet) + ', ' + App.esc(name) + '</span>' +
+          '<h2 class="hero-greet">' +
+            App.esc(App.state.settings.SYSTEM_SHORT_NAME || 'FKM News') + '</h2>' +
+          '<p class="hero-sub">' +
+            App.esc(App.state.settings.FACULTY_NAME || '') + '</p>' +
+          '<div class="hero-meta">' +
+            '<span>' + App.icon('calendar', 14) + App.esc(date) + '</span>' +
+            '<span>' + App.icon('clock', 14) + App.esc(time) + '</span>' +
+            '<span>' + App.icon('review', 14) +
+              (pending ? pending + ' menunggu tindakan' : 'Tiada tindakan tertunggak') +
+            '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div></section>';
+  },
+
+  /** Tindakan pantas — apa yang pengguna datang untuk buat */
+  quickActions: function (data) {
+    var actions = [];
+
+    if (App.can('news.create')) {
+      actions.push({ id: 'actWrite', label: 'Tambah Berita',
+        sub: 'Tulis dan hantar untuk semakan', icon: 'plus', tone: 'primary' });
+    }
+    if (App.can('review.admin') || App.can('review.editor')) {
+      actions.push({ id: 'actQueue', label: 'Giliran Semakan',
+        sub: data.actionQueue.length + ' menunggu keputusan', icon: 'review' });
+    }
+    actions.push({ id: 'actPortal', label: 'Laman Berita',
+      sub: 'Lihat paparan pembaca', icon: 'home' });
+    if (App.can('settings.manage')) {
+      actions.push({ id: 'actSettings', label: 'Tetapan Sistem',
+        sub: 'Jenama, aliran kerja, kesan', icon: 'settings' });
+    }
+
+    return '<div class="action-stack">' + actions.slice(0, 4).map(function (a) {
+      return '<button class="action-btn' + (a.tone === 'primary' ? ' primary' : '') +
+        '" id="' + a.id + '">' +
+        '<span class="action-icon">' + App.icon(a.icon, 18) + '</span>' +
+        '<span class="action-text"><span class="action-label">' + App.esc(a.label) + '</span>' +
+        '<span class="action-sub">' + App.esc(a.sub) + '</span></span>' +
+        App.icon('arrow', 16) + '</button>';
+    }).join('') + '</div>';
+  },
+
+  /* ------------------------------------------------- Giliran & berita */
+
+  queuePanel: function (data) {
+    var heading = App.state.user.role === 'AUTHOR'
+      ? 'Perlu tindakan anda' : 'Menunggu keputusan anda';
+
+    if (!data.actionQueue.length) return '';
+
+    var rows = data.actionQueue.map(function (n) {
+      return '<button class="list-row" data-open-news="' + App.esc(n.newsId) + '">' +
+        '<span class="list-thumb">' + (n.featuredImageUrl
+          ? '<img src="' + App.esc(n.featuredImageUrl) + '" alt="" loading="lazy">'
+          : '<span class="list-thumb-blank"></span>') + '</span>' +
+        '<span class="list-body">' +
+          '<span class="list-title">' + App.esc(n.title) + '</span>' +
+          '<span class="list-meta">' + App.statusPill(n.statusLabel, n.statusColor) +
+          '<span>' + App.esc(n.authorName) + '</span>' +
+          '<span>' + App.esc(n.categoryName) + '</span></span>' +
+        '</span>' +
+        '<span class="list-time">' + App.esc(n.updatedAt) + '</span></button>';
+    }).join('');
+
+    return '<section class="card section">' +
+      '<div class="panel-head">' +
+        '<span class="panel-icon">' + App.icon('review', 18) + '</span>' +
+        '<div><div class="panel-title">' + App.esc(heading) + '</div>' +
+        '<div class="panel-sub">Disusun mengikut yang paling lama menunggu</div></div>' +
+        '<span class="spacer"></span>' +
+        '<span class="pill" style="--pill-color:var(--warning-color)">' +
+        data.actionQueue.length + '</span>' +
+      '</div>' + rows + '</section>';
+  },
+
+  recentPanel: function (data) {
+    var body;
+
+    if (!data.recent.length) {
+      body = App.emptyState('Belum ada berita',
+        'Berita yang ditulis pasukan akan dipaparkan di sini mengikut aktiviti terkini.',
+        App.can('news.create')
+          ? '<button class="btn" id="emptyWrite">Tulis berita pertama</button>' : '',
+        'news');
+    } else {
+      body = data.recent.map(function (n) {
+        return '<button class="list-row" data-open-news="' + App.esc(n.newsId) + '">' +
+          '<span class="list-thumb">' + (n.featuredImageUrl
+            ? '<img src="' + App.esc(n.featuredImageUrl) + '" alt="" loading="lazy">'
+            : '<span class="list-thumb-blank"></span>') + '</span>' +
+          '<span class="list-body">' +
+            '<span class="list-title">' + App.esc(n.title) + '</span>' +
+            '<span class="list-meta">' + App.statusPill(n.statusLabel, n.statusColor) +
+            '<span>' + App.esc(n.categoryName) + '</span></span>' +
+          '</span>' +
+          '<span class="list-time">' + App.esc(n.updatedAt) + '</span></button>';
+      }).join('');
+    }
+
+    return '<section class="card">' +
+      '<div class="panel-head">' +
+        '<span class="panel-icon">' + App.icon('news', 18) + '</span>' +
+        '<div><div class="panel-title">Berita Terkini</div>' +
+        '<div class="panel-sub">Aktiviti terbaharu dalam sistem</div></div>' +
+        '<span class="spacer"></span>' +
+        '<button class="link-more" id="seeAllNews">Lihat semua' +
+        App.icon('arrow', 14) + '</button>' +
+      '</div>' + body + '</section>';
+  },
+
+  sidePanels: function (data) {
+    return '<div class="dash-side">' +
+      this.trendPanel(data) +
+      this.quickLinksPanel() +
+      '</div>';
+  },
+
+  /** Trend bulanan sebagai bar mendatar — lebih mudah dibaca pada lajur sempit */
+  trendPanel: function (data) {
+    var hasData = data.trend.some(function (b) { return b.submitted || b.published; });
+
+    var body = hasData
+      ? '<div class="card-pad"><div class="trend-rows">' +
+        data.trend.map(function (b, i) {
+          var max = data.trend.reduce(function (m, x) {
+            return Math.max(m, x.submitted, x.published);
+          }, 1);
+          var pct = Math.round((b.published / max) * 100);
+          return '<div class="trend-row">' +
+            '<span class="trend-row-label">' + App.esc(b.label) + '</span>' +
+            '<span class="trend-row-track"><span class="trend-row-fill" style="width:' +
+            Math.max(pct, 2) + '%;animation-delay:' + (i * 55) + 'ms"></span></span>' +
+            '<span class="trend-row-value mono">' + b.published + '</span></div>';
+        }).join('') + '</div>' +
+        '<p class="small muted" style="margin:12px 0 0">Bilangan berita diterbitkan setiap bulan</p>' +
+        '</div>'
+      : '<div class="card-pad">' + App.chartEmpty('Belum ada data trend',
+          'Graf akan terbentuk selepas berita pertama diterbitkan.') + '</div>';
+
+    return '<section class="card">' +
+      '<div class="panel-head">' +
+        '<span class="panel-icon">' + App.icon('trend', 18) + '</span>' +
+        '<div><div class="panel-title">Trend Bulanan</div>' +
+        '<div class="panel-sub">6 bulan terakhir</div></div>' +
+      '</div>' + body + '</section>';
+  },
+
+  quickLinksPanel: function () {
+    var s = App.state.settings;
+    if (!s.SHOW_QUICK_LINKS) return '';
+
+    var links = s.QUICK_LINKS || [];
+    if (!links.length) return '';
+
+    return '<section class="card">' +
+      '<div class="panel-head">' +
+        '<span class="panel-icon">' + App.icon('globe', 18) + '</span>' +
+        '<div><div class="panel-title">Pautan Pantas</div></div>' +
+      '</div>' +
+      '<div class="quick-grid">' + links.slice(0, 6).map(function (l) {
+        return '<a class="quick-link" href="' + App.esc(l.url) + '" target="_blank" ' +
+          'rel="noopener noreferrer">' + App.icon(l.icon || 'globe', 20) +
+          '<span class="quick-label">' + App.esc(l.label) + '</span></a>';
+      }).join('') + '</div></section>';
+  },
+
+  /* --------------------------------------------- Statistik (sokongan) */
+
+  metricSection: function (data) {
+    if (!data.kpis.length) return '';
+
+    var icons = ['news', 'review', 'eye', 'folder', 'users', 'bell'];
+
+    var cards = data.kpis.map(function (k, i) {
+      return '<div class="kpi" style="--kpi-color:' + App.esc(k.color) +
+        ';animation-delay:' + (i * 40) + 'ms">' +
+        '<div class="kpi-top">' +
+          '<span class="kpi-icon">' + App.icon(icons[i % icons.length], 18) + '</span>' +
+          '<button class="kpi-go" data-status="' + App.esc(k.status) +
+          '" aria-label="Tapis mengikut ' + App.esc(k.label) + '">' +
+          App.icon('arrow', 14) + '</button>' +
+        '</div>' +
+        '<div><div class="kpi-value mono" data-count="' + k.value + '">0</div>' +
+        '<div class="kpi-label">' + App.esc(k.label) + '</div>' +
+        (k.hint ? '<div class="kpi-hint">' + App.esc(k.hint) + '</div>' : '') +
+        '</div></div>';
+    }).join('');
+
+    return '<section class="section">' +
+      '<div class="section-head" style="margin-bottom:12px">' +
+        '<h2 class="section-title">Ringkasan Statistik</h2>' +
+      '</div>' +
+      '<div class="kpis" data-count="' + data.kpis.length + '">' + cards + '</div>' +
+      '</section>';
+  },
+
+  /* ------------------------------------------------------------ Binding */
+
+  bind: function (container, data) {
+    container.querySelectorAll('[data-open-news]').forEach(function (node) {
+      node.addEventListener('click', function () {
+        App.navigate('news-detail', { newsId: node.dataset.openNews });
+      });
+    });
+
+    var map = {
+      actWrite: function () { App.navigate('news-form', { mode: 'create' }); },
+      emptyWrite: function () { App.navigate('news-form', { mode: 'create' }); },
+      actQueue: function () { App.navigate('review'); },
+      actPortal: function () { App.navigate('portal'); },
+      actSettings: function () { App.navigate('settings'); },
+      seeAllNews: function () { App.navigate('news-list'); }
+    };
+    Object.keys(map).forEach(function (id) {
+      var node = container.querySelector('#' + id);
+      if (node) node.addEventListener('click', map[id]);
+    });
+
+    // Kad statistik membawa ke senarai yang sudah ditapis mengikut status
+    container.querySelectorAll('[data-status]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var status = btn.dataset.status;
+        App.navigate('news-list', status ? { status: status } : {});
+      });
+    });
+
+    container.querySelectorAll('.kpi-value[data-count]').forEach(function (node, i) {
+      setTimeout(function () { App.countUp(node, node.dataset.count, 700); }, i * 55);
+    });
+  }
+};
+</script>

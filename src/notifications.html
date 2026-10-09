@@ -1,0 +1,90 @@
+<script>
+/* notifications.html — notifikasi dalam sistem.
+   E-mel dihantar berasingan oleh NotificationService di server. */
+
+App.views['notifications'] = {
+
+  page: 1,
+  onlyUnread: false,
+
+  title: function () { return 'Notifikasi'; },
+
+  render: function (container) {
+    var self = this;
+    container.innerHTML =
+      '<section class="card section card-pad">' +
+        '<div class="row">' +
+          '<label class="check"><input type="checkbox" id="unreadOnly"' +
+          (self.onlyUnread ? ' checked' : '') + '><span>Belum dibaca sahaja</span></label>' +
+          '<span class="spacer"></span>' +
+          '<button class="btn btn-ghost btn-sm" id="markAll">Tanda semua dibaca</button>' +
+        '</div>' +
+      '</section>' +
+      '<section class="card" id="notifCard"></section>';
+
+    container.querySelector('#unreadOnly').addEventListener('change', function (e) {
+      self.onlyUnread = e.target.checked;
+      self.page = 1;
+      self.load(container);
+    });
+
+    container.querySelector('#markAll').addEventListener('click', function () {
+      App.call('notification.markAllRead').then(function (count) {
+        App.setUnread(0);
+        App.toast(count + ' notifikasi ditanda sebagai dibaca.', 'success');
+        self.load(container);
+      }).catch(App.fail);
+    });
+
+    return self.load(container);
+  },
+
+  load: function (container) {
+    var self = this;
+    var card = container.querySelector('#notifCard');
+    card.innerHTML = '<div class="card-pad skeleton-stack">' +
+      '<div class="skeleton skeleton-row"></div>'.repeat(4) + '</div>';
+
+    return App.call('notification.list', {
+      onlyUnread: self.onlyUnread,
+      page: self.page,
+      pageSize: App.state.settings.PAGE_SIZE
+    }).then(function (result) {
+      if (!result.items.length) {
+        card.innerHTML = App.emptyState('Tiada notifikasi',
+          self.onlyUnread
+            ? 'Semua notifikasi telah dibaca. Tukar penapis untuk melihat yang lama.'
+            : 'Notifikasi akan muncul apabila berita bergerak dalam aliran kerja.',
+          '', 'bell');
+        return;
+      }
+
+      var rows = result.items.map(function (n) {
+        return '<tr class="clickable" data-notif="' + App.esc(n.notificationId) +
+          '" data-news="' + App.esc(n.newsId) + '"' +
+          (n.isRead ? '' : ' style="background:color-mix(in srgb,var(--accent-color) 6%,transparent)"') +
+          '><td><div class="cell-title">' + App.esc(n.subject) + '</div>' +
+          '<div class="cell-sub">' + App.esc(n.message) + '</div></td>' +
+          '<td class="cell-sub" style="white-space:nowrap">' + App.esc(n.createdAt) + '</td></tr>';
+      }).join('');
+
+      var p = App.pager(result, function (page) { self.page = page; self.load(container); });
+
+      card.innerHTML = '<div class="table-wrap"><table><tbody>' + rows +
+        '</tbody></table></div>' + p.html;
+      p.bind(card);
+
+      card.querySelectorAll('[data-notif]').forEach(function (tr) {
+        tr.addEventListener('click', function () {
+          App.call('notification.markRead', { notificationId: tr.dataset.notif })
+            .then(function () {
+              App.setUnread(Math.max(0, App.state.unread - 1));
+              if (tr.dataset.news) App.navigate('news-detail', { newsId: tr.dataset.news });
+              else self.load(container);
+            }).catch(App.fail);
+        });
+      });
+    });
+  }
+};
+</script>
