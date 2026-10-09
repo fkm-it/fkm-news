@@ -45,11 +45,29 @@ jobs:
           chmod 600 "$HOME/.clasprc.json"
           printf '{"scriptId":"%s","rootDir":"src"}\n' "${{ vars.SCRIPT_ID }}" > .clasp.json
           npm install --no-save --no-audit --no-fund @google/clasp@3
+      # Log Actions tidak boleh dibaca melalui API tanpa log masuk, jadi
+      # punca kegagalan dipaparkan sebagai anotasi ::error::.
       - name: clasp push
-        run: npx clasp push --force
+        run: |
+          set +e
+          npx clasp push --force > clasp.log 2>&1
+          CODE=$?
+          cat clasp.log
+          if [ $CODE -ne 0 ]; then
+            tail -n 15 clasp.log | sed 's/%/%25/g' | while IFS= read -r line; do echo "::error::$line"; done
+            exit $CODE
+          fi
       - name: Kemas kini deployment (URL kekal sama)
         if: ${{ vars.DEPLOYMENT_ID != '' }}
-        run: npx clasp update-deployment "${{ vars.DEPLOYMENT_ID }}" --description "v$(cat VERSION) ${GITHUB_SHA::7}"
+        run: |
+          set +e
+          npx clasp update-deployment "${{ vars.DEPLOYMENT_ID }}" --description "v$(cat VERSION) ${GITHUB_SHA::7}" > deploy.log 2>&1
+          CODE=$?
+          cat deploy.log
+          if [ $CODE -ne 0 ]; then
+            tail -n 15 deploy.log | sed 's/%/%25/g' | while IFS= read -r line; do echo "::error::$line"; done
+            exit $CODE
+          fi
       - name: Buang kelayakan
         if: always()
         run: rm -f "$HOME/.clasprc.json" .clasp.json
