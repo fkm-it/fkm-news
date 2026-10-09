@@ -35,6 +35,30 @@ if (process.argv.includes('--static')) {
   console.log('data statik: ' + Object.keys(files).length + ' fail');
 }
 
+/* Pembantu AI (F8): Claude API tiruan untuk E2E */
+if (process.argv.includes('--ai')) {
+  gas.as(OWNER);
+  c.GlobalSettings.updateGlobalSetting('AI_ENABLED', true, 'DEV');
+  gas.scriptProps.setProperty('FKMNEWS_ANTHROPIC_KEY', 'sk-ant-dev');
+  gas.anon();
+  gas.state.fetchHandler = (url, params) => {
+    const prompt = JSON.parse(params.payload).messages[0].content;
+    let out = {};
+    if (/nota kasar/i.test(prompt)) out = {
+      title: 'Bengkel CAD 3D Perkasa Kemahiran Pelajar FKM',
+      summary: 'Seramai 40 pelajar tahun dua menyertai bengkel CAD 3D anjuran Jabatan Reka Bentuk di Makmal E01, FKM.',
+      content: '<p><strong>JOHOR BAHRU, 5 Oktober</strong> – Seramai 40 pelajar tahun dua menyertai bengkel <em>CAD 3D</em>.</p><p>Bengkel ini bertujuan meningkatkan kemahiran reka bentuk.</p>',
+      suggestedCategory: 'Aktiviti', missingInfo: ['Nama penuh dan jawatan penceramah']
+    };
+    else if (/Semak berita/.test(prompt)) out = { score: 78, summary: 'Struktur baik; beberapa ejaan perlu dibetulkan.',
+      items: [{ type: 'ejaan', location: 'perenggan 2', issue: 'dibengkel', suggestion: 'di bengkel' }] };
+    else if (/Terjemahkan/.test(prompt)) out = { titleEn: 'Merdeka Explorace 2026', summaryEn: 'Summary EN', contentEn: '<p>Content EN</p>' };
+    else out = { facebook: 'Kapsyen FB #FKMUTM', instagram: 'Kapsyen IG', linkedin: 'Caption LI' };
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({
+      content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 1000, output_tokens: 500 } }) };
+  };
+}
+
 /* ---------- pelayan ---------- */
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json',
   '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.css': 'text/css' };

@@ -42,6 +42,14 @@ Repo `fkm-it/fkm-news` → **Settings → Secrets and variables → Actions**
 
 > Nota pembangun: StaticSite.gs membuat commit ke `main` (folder `data/`). Jalankan `git pull --rebase` sebelum push.
 
+## 1.4 Pembantu AI (F8) — pilihan
+
+1. platform.claude.com → log masuk / daftar → **Billing**: tambah kredit (cth. USD 5–10). Bil ini berasingan daripada langganan Claude.ai.
+2. **API Keys → Create Key** (nama: `FKM News`) → salin (`sk-ant-…`).
+3. Editor FKM NEWS → ⚙ Project Settings → Script Properties → Add: `FKMNEWS_ANTHROPIC_KEY` = kunci → Save.
+4. App staf → Tetapan → **Feature**: `AI_ENABLED` = hidup; `AI_MODEL` = `claude-sonnet-5-5` (kualiti) atau `claude-haiku-5-5` (jimat); `AI_MONTHLY_BUDGET_USD` = had sebulan.
+5. Semak: borang Tulis berita menunjukkan butang **✨ Pembantu Penulis AI**.
+
 ## 2. Rollback
 Apps Script → **Deploy → Manage deployments → ✏️ → Version** → pilih versi sebelumnya → Deploy.
 Atau `git revert` commit bermasalah dan push.

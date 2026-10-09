@@ -303,6 +303,41 @@ function route_(action, p, user) {
     case 'social.testConnection':
       return SocialService.testConnection(user);
 
+    /* ---------- Pembantu AI (F8) ---------- */
+    case 'ai.status':
+      return AiService.status();
+
+    case 'ai.draft':
+      Security.requirePermission(user, 'news.create');
+      return AiService.draft(user, p.notes, p.categoryName);
+
+    case 'ai.review':
+      var newsForReview = NewsService.getRaw(p.newsId);
+      Security.requireViewNews(user, newsForReview);
+      if (user.role !== ROLES.ADMIN && user.role !== ROLES.EDITOR) {
+        throw Utils.appError('FORBIDDEN', 'Semakan AI untuk Admin dan Editor sahaja.');
+      }
+      return AiService.review(user, NewsService.getDetail(user, p.newsId));
+
+    case 'ai.translate':
+      var newsForTr = NewsService.getRaw(p.newsId);
+      Security.requireViewNews(user, newsForTr);
+      if (!NewsService.canEditEnglish(user, newsForTr)) {
+        throw Utils.appError('FORBIDDEN', 'Anda tidak boleh mengubah versi Inggeris berita ini.');
+      }
+      return AiService.translate(user, NewsService.getDetail(user, p.newsId));
+
+    case 'ai.social':
+      var newsForSoc = NewsService.getRaw(p.newsId);
+      Security.requireViewNews(user, newsForSoc);
+      if (user.role !== ROLES.ADMIN && user.role !== ROLES.EDITOR) {
+        throw Utils.appError('FORBIDDEN', 'Kapsyen AI untuk Admin dan Editor sahaja.');
+      }
+      return AiService.social(user, NewsService.getDetail(user, p.newsId));
+
+    case 'news.saveEnglish':
+      return NewsService.saveEnglish(user, p.newsId, p.data || {});
+
     /* ---------- Notifikasi ---------- */
     case 'notification.list':
       return NotificationService.listForUser(user.userId, p.onlyUnread, p.page, p.pageSize);
@@ -449,7 +484,7 @@ function setThemeMode_(mode) {
  * Operasi tulis dihadkan lebih ketat daripada bacaan.
  */
 function enforceRateLimit_(user, action) {
-  var isWrite = /\.(create|update|delete|save|upload|remove|transition|publish|markRead|markAllRead|setTheme|setActingRole|reorder|setFeatured|toggleSocial|saveCredentials)$/.test(action);
+  var isWrite = /\.(create|update|delete|save|upload|remove|transition|publish|markRead|markAllRead|setTheme|setActingRole|reorder|setFeatured|toggleSocial|saveCredentials|saveEnglish|draft|review|translate|social)$/.test(action);
 
   var limit = isWrite ? 60 : 300;   // setiap tetingkap
   var windowSeconds = 60;

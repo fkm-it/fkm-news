@@ -26,7 +26,7 @@ jobs:
       - name: Semakan statik & imbasan rahsia
         run: npm run check
       - name: Binaan portal web (percubaan)
-        run: node tools/build-web.js --api http://localhost:8080/__api --out .verify-web
+        run: node tools/build-web.js --api http://localhost:8080/__api --out .verify-web --data .e2e-tiada-data
 
   e2e:
     name: E2E portal (telefon 360px + desktop)
@@ -45,7 +45,7 @@ jobs:
         run: pip install playwright && python -m playwright install --with-deps chromium
       - name: Jalankan E2E
         run: |
-          node tools/build-web.js --api http://localhost:8080/__api --out .verify-web
+          node tools/build-web.js --api http://localhost:8080/__api --out .verify-web --data .e2e-tiada-data
           node tools/dev-server.js --port 8080 > dev-server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:8080/ > /dev/null && break; sleep 1; done
           python tools/e2e.py
@@ -54,6 +54,11 @@ jobs:
           node tools/dev-server.js --port 8080 --static > dev-server-static.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:8080/data/bm/home.json > /dev/null && break; sleep 1; done
           E2E_STATIC=1 E2E_SHOTS=e2e-shots/static python tools/e2e.py
+          # Pembantu AI (F8) dengan Claude API tiruan
+          kill %2 || true
+          node tools/dev-server.js --port 8080 --ai > dev-server-ai.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/ > /dev/null && break; sleep 1; done
+          E2E_AI=1 E2E_SHOTS=e2e-shots/ai python tools/e2e.py
       - name: Simpan tangkapan skrin
         if: always()
         uses: actions/upload-artifact@v4

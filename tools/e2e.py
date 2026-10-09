@@ -103,6 +103,34 @@ with sync_playwright() as p:
         check(sw <= 1, f'app: senarai berita (sesi kekal selepas muat semula) tiada skrol mendatar ({sw}px)')
         page.screenshot(path=f'{SHOTS}/{name}-6-app-senarai.png', full_page=False)
 
+        if os.environ.get('E2E_AI'):
+            if name == 'desktop':
+                # Admin: semakan AI pada butiran berita
+                page.goto(BASE + 'app/?page=news-detail&id=NEWS-2026-00001', wait_until='domcontentloaded')
+                page.wait_for_selector('#aiReviewBtn', timeout=20000)
+                page.click('#aiReviewBtn')
+                page.wait_for_selector('.ai-score', timeout=15000)
+                check(page.inner_text('.ai-score').strip() == '78', 'AI: semakan awal memaparkan skor & cadangan')
+                page.screenshot(path=f'{SHOTS}/{name}-7-ai-semakan.png', full_page=False)
+                page.click('#modalFoot .btn-ghost')
+            else:
+                # Penulis: draf AI dalam borang berita
+                page.goto(BASE + 'app/?page=news-form', wait_until='domcontentloaded')
+                page.wait_for_selector('#aiDraftBtn', timeout=20000)
+                page.click('#aiDraftBtn')
+                page.fill('#aiNotes', 'Bengkel CAD 3D, 5 Okt 2026, Makmal E01 FKM, 40 pelajar tahun 2, anjuran Jabatan Reka Bentuk.')
+                page.click('#modalFoot .btn:not(.btn-ghost)')
+                page.wait_for_selector('#aiOut h3', timeout=15000)
+                page.screenshot(path=f'{SHOTS}/{name}-7-ai-draf.png', full_page=False)
+                page.click('#modalFoot .btn:not(.btn-ghost)')
+                page.wait_for_timeout(400)
+                check(page.input_value('#fTitle').startswith('Bengkel CAD 3D'), 'AI: draf dimasukkan ke borang (tajuk)')
+                check('40 pelajar' in page.inner_text('#fContent'), 'AI: draf dimasukkan ke borang (kandungan)')
+                sw = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+                check(sw <= 1, f'AI: borang tiada skrol mendatar ({sw}px)')
+            page.goto(BASE + 'app/', wait_until='domcontentloaded')
+            page.wait_for_selector('#profileBtn', timeout=20000)
+
         page.click('#profileBtn')
         page.click('[data-logout]')
         page.wait_for_selector('#authEmail', timeout=15000)

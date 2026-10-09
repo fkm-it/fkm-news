@@ -1,5 +1,18 @@
 # Changelog — FKM News
 
+## 1.6.0 — 2026-10-09 · F8 Pembantu AI untuk staf (Claude API)
+
+Mati secara lalai. Ia hanya aktif selepas pentadbir menetapkan kunci API dan menghidupkan `AI_ENABLED`. Bil Claude API berasingan daripada langganan Claude.ai.
+
+- **Pembantu Penulis AI** (borang berita): nota kasar → draf tajuk, ringkasan dan kandungan ikut gaya berita FKM, serta senarai "maklumat yang perlu ditambah". Draf dipratonton dahulu, kemudian "Guna draf ini" mengisi borang. Penulis tetap menyimpan sendiri.
+- **Semakan AI** (butiran berita, Admin/Editor): skor, ringkasan, dan senarai isu ejaan/format/struktur/fakta dengan cadangan. Berita tidak diubah.
+- **Versi BI** (butiran berita): cadangan terjemahan Inggeris → "Simpan versi BI" (`news.saveEnglish`). Pemilik boleh menggunakannya semasa berita boleh disunting; Admin pada sebarang status. Berita diterbitkan → portal statik dikemas kini.
+- **Kapsyen AI** dalam penyusun media sosial (Facebook / Instagram / LinkedIn).
+- Kawalan kos: `AI_MODEL` (Sonnet 5.5 / Haiku 5.5), `AI_MONTHLY_BUDGET_USD` (lalai 5). Kos dikira daripada `usage` setiap panggilan; panggilan ditolak apabila had dicapai. Had 30 panggilan sejam setiap pengguna. Setiap panggilan direkod dalam log audit.
+- Keselamatan: kunci dalam Script Property `FKMNEWS_ANTHROPIC_KEY` (tidak pernah dihantar ke pelayar). Semua HTML daripada AI melalui `sanitizeHtml`. Kebenaran disemak di pelayan.
+- UI ditambah melalui `ai.html` (membalut paparan sedia ada; fail asal tidak diubah).
+- 15 ujian baharu (`tests/ai.test.js`, Claude API tiruan) + E2E (draf pada 360px, semakan pada desktop). E2E kini dibina tanpa `data/` sebenar repo.
+
 ## 1.5.0 — 2026-10-09 · F7 Peringatan tertunggak
 
 - `ReminderService.gs`: setiap hari bekerja (dijalankan oleh `dailyMaintenance`), berita yang tersangkut lebih daripada `REMINDER_DAYS` hari (lalai 2) dikumpul. **Satu ringkasan** dihantar setiap penerima: Admin untuk SUBMITTED/RESUBMITTED/ADMIN_REVIEW, Editor untuk EDITOR_REVIEW/APPROVED, dan Penulis untuk REVISION_REQUIRED. Setiap ringkasan disertakan dengan notifikasi dalam app. Hujung minggu dilangkau, dan sistem hanya berjalan sekali sehari.

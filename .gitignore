@@ -7,3 +7,4 @@ node_modules/
 dist/
 e2e-shots/
 __pycache__/
+.e2e-tiada-data/

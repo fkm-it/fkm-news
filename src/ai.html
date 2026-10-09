@@ -1,0 +1,274 @@
+<style>
+  .ai-btn { display: inline-flex; align-items: center; gap: 6px; }
+  .ai-spark { font-size: 1rem; line-height: 1; }
+  .ai-list { list-style: none; margin: 0; padding: 0; }
+  .ai-list li { border-bottom: 1px solid var(--border-color); padding: 10px 0; }
+  .ai-list li:last-child { border-bottom: 0; }
+  .ai-tag { display: inline-block; font-size: .7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; margin-right: 6px;
+    background: var(--background-color); color: var(--primary-color); }
+  .ai-score { font-size: 2rem; font-weight: 700; color: var(--primary-color); }
+  .ai-note { font-size: .78rem; color: var(--muted-color); margin: 8px 0 0; }
+  .ai-preview { max-height: 46vh; overflow: auto; border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm); padding: 12px 14px; }
+  .ai-missing { background: var(--background-color); border-radius: var(--radius-sm);
+    padding: 10px 12px; font-size: .82rem; margin-top: 12px; }
+</style>
+<script>
+/* ai.html — Pembantu AI (F8).
+
+   Fail ini menambah butang AI pada skrin sedia ada TANPA mengubah fail
+   asal: ia membalut render() news-form dan news-detail, dan composerBody()
+   social. Butang hanya muncul apabila ai.status.ready (AI_ENABLED + kunci
+   API ditetapkan). Semua output AI ialah cadangan; pengguna menyemak
+   sebelum menyimpan. */
+
+(function () {
+  var statusPromise = null;
+
+  function aiStatus() {
+    if (!statusPromise) {
+      statusPromise = App.call('ai.status').catch(function () { return { ready: false }; });
+    }
+    return statusPromise;
+  }
+
+  function spark(label) {
+    return '<span class="ai-spark" aria-hidden="true">✨</span>' + App.esc(label);
+  }
+
+  function busy(btn, text) {
+    btn.disabled = true;
+    btn.dataset.label = btn.innerHTML;
+    btn.textContent = text;
+  }
+
+  function done(btn) {
+    btn.disabled = false;
+    if (btn.dataset.label) btn.innerHTML = btn.dataset.label;
+  }
+
+  function costNote(st) {
+    return '<p class="ai-note">Dijana oleh ' + App.esc(st.modelLabel || 'Claude') +
+      '. Semak semula sebelum digunakan; AI boleh tersilap.</p>';
+  }
+
+  /* ------------------------------------------------ Borang berita: draf */
+
+  function openDraft(container, st) {
+    App.openModal({
+      title: 'Pembantu Penulis AI',
+      wide: true,
+      body:
+        '<div class="field"><label for="aiNotes">Nota kasar program / pencapaian</label>' +
+        '<textarea id="aiNotes" style="min-height:180px" maxlength="8000" placeholder="' +
+        'Cth: Bengkel CAD 3D, 5 Okt 2026, Makmal E01 FKM. Anjuran Jabatan Reka Bentuk. ' +
+        '40 pelajar tahun 2. Penceramah Dr Ali (pensyarah kanan). Objektif: kemahiran SolidWorks…"></textarea>' +
+        '<span class="help">Masukkan fakta: apa, bila, di mana, siapa, petikan (jika ada). ' +
+        'AI tidak akan mereka maklumat yang tiada.</span></div>' +
+        '<div id="aiOut"></div>' + costNote(st),
+      buttons: [
+        { label: 'Tutup', className: 'btn-ghost', onClick: App.closeModal },
+        { label: 'Jana draf', className: 'btn', onClick: function (btn) { runDraft(container, btn); } }
+      ]
+    });
+  }
+
+  function runDraft(container, btn) {
+    var notes = App.el('aiNotes').value.trim();
+    var cat = container.querySelector('#fCategory');
+    var catName = cat && cat.selectedIndex > 0 ? cat.options[cat.selectedIndex].text : '';
+    busy(btn, 'Menjana…');
+    App.call('ai.draft', { notes: notes, categoryName: catName }).then(function (d) {
+      done(btn);
+      var missing = (d.missingInfo || []).length
+        ? '<div class="ai-missing"><strong>Maklumat yang perlu ditambah:</strong><ul>' +
+          d.missingInfo.map(function (m) { return '<li>' + App.esc(m) + '</li>'; }).join('') +
+          '</ul></div>' : '';
+      App.el('aiOut').innerHTML =
+        '<h3 style="margin:14px 0 6px">' + App.esc(d.title) + '</h3>' +
+        '<p><strong>' + App.esc(d.summary) + '</strong></p>' +
+        '<div class="ai-preview article-body">' + d.content + '</div>' + missing;
+      btn.textContent = 'Guna draf ini';
+      btn.onclick = null;
+      var fresh = btn.cloneNode(true);
+      btn.parentNode.replaceChild(fresh, btn);
+      fresh.addEventListener('click', function () { applyDraft(container, d); });
+    }).catch(function (err) { done(btn); App.toast(err.message, 'error'); });
+  }
+
+  function applyDraft(container, d) {
+    var set = function (sel, v) {
+      var el = container.querySelector(sel);
+      if (!el || !v) return;
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    set('#fTitle', d.title);
+    set('#fSummary', d.summary);
+    var content = container.querySelector('#fContent');
+    if (content && d.content) {
+      content.innerHTML = d.content;
+      content.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    var cat = container.querySelector('#fCategory');
+    if (cat && d.suggestedCategory && !cat.value) {
+      for (var i = 0; i < cat.options.length; i++) {
+        if (cat.options[i].text.toLowerCase() === d.suggestedCategory.toLowerCase()) { cat.value = cat.options[i].value; break; }
+      }
+    }
+    App.closeModal();
+    App.toast('Draf dimasukkan ke borang. Semak, kemudian simpan.', 'success');
+  }
+
+  var formView = App.views['news-form'];
+  if (formView) {
+    var origFormRender = formView.render;
+    formView.render = function (container, params) {
+      var r = origFormRender.apply(this, arguments);
+      Promise.resolve(r).then(aiStatus).then(function (st) {
+        if (!st.ready || !App.can('news.create')) return;
+        var anchor = container.querySelector('#fTitle');
+        if (!anchor || container.querySelector('#aiDraftBtn')) return;
+        var card = anchor.closest('section') || anchor.parentNode;
+        var bar = App.h('<div class="row" style="margin:0 0 14px;gap:8px">' +
+          '<button type="button" class="btn btn-accent btn-sm ai-btn" id="aiDraftBtn">' +
+          spark('Pembantu Penulis AI') + '</button>' +
+          '<span class="small muted">Tulis nota kasar, AI sediakan draf ikut gaya berita FKM.</span></div>');
+        card.insertBefore(bar, card.firstChild);
+        bar.querySelector('#aiDraftBtn').addEventListener('click', function () { openDraft(container, st); });
+      });
+      return r;
+    };
+  }
+
+  /* ----------------------------------- Butiran berita: semakan & BI */
+
+  function openReview(n, st) {
+    App.openModal({
+      title: 'Semakan awal AI',
+      wide: true,
+      body: '<div id="aiOut">' + App.skeleton(4) + '</div>' + costNote(st),
+      buttons: [{ label: 'Tutup', className: 'btn-ghost', onClick: App.closeModal }]
+    });
+    App.call('ai.review', { newsId: n.newsId }).then(function (r) {
+      var items = r.items.length
+        ? '<ul class="ai-list">' + r.items.map(function (it) {
+            return '<li><span class="ai-tag">' + App.esc(it.type) + '</span>' +
+              '<span class="small muted">' + App.esc(it.location) + '</span>' +
+              '<div style="margin-top:4px">' + App.esc(it.issue) + '</div>' +
+              '<div style="margin-top:4px"><strong>Cadangan:</strong> ' + App.esc(it.suggestion) + '</div></li>';
+          }).join('') + '</ul>'
+        : App.emptyState('Tiada isu ditemui', 'AI tidak menemui masalah format, ejaan atau struktur.');
+      App.el('aiOut').innerHTML =
+        '<div class="row" style="gap:14px;align-items:center;margin-bottom:10px">' +
+        '<div class="ai-score">' + Number(r.score) + '</div>' +
+        '<div class="small">' + App.esc(r.summary) + '</div></div>' + items;
+    }).catch(function (err) {
+      App.el('aiOut').innerHTML = '<p style="color:var(--danger-color)">' + App.esc(err.message) + '</p>';
+    });
+  }
+
+  function openTranslate(n, st, reload) {
+    var proposal = null;
+    App.openModal({
+      title: 'Versi Bahasa Inggeris (AI)',
+      wide: true,
+      body: '<div id="aiOut">' + App.skeleton(5) + '</div>' + costNote(st),
+      buttons: [
+        { label: 'Tutup', className: 'btn-ghost', onClick: App.closeModal },
+        { label: 'Simpan versi BI', className: 'btn', onClick: function (btn) {
+            if (!proposal) return;
+            busy(btn, 'Menyimpan…');
+            proposal.source = 'ai';
+            App.call('news.saveEnglish', { newsId: n.newsId, data: proposal }).then(function () {
+              App.closeModal();
+              App.toast('Versi Bahasa Inggeris disimpan.', 'success');
+              if (reload) reload();
+            }).catch(function (err) { done(btn); App.toast(err.message, 'error'); });
+          } }
+      ]
+    });
+    App.call('ai.translate', { newsId: n.newsId }).then(function (t) {
+      proposal = t;
+      App.el('aiOut').innerHTML =
+        '<h3 style="margin:0 0 6px">' + App.esc(t.titleEn) + '</h3>' +
+        '<p><strong>' + App.esc(t.summaryEn) + '</strong></p>' +
+        '<div class="ai-preview article-body">' + t.contentEn + '</div>';
+    }).catch(function (err) {
+      App.el('aiOut').innerHTML = '<p style="color:var(--danger-color)">' + App.esc(err.message) + '</p>';
+    });
+  }
+
+  var detailView = App.views['news-detail'];
+  if (detailView) {
+    var origDetailRender = detailView.render;
+    detailView.render = function (container, params) {
+      var self = this;
+      var r = origDetailRender.apply(this, arguments);
+      Promise.resolve(r).then(aiStatus).then(function (st) {
+        var n = self.news;
+        if (!st.ready || !n || container.querySelector('#aiReviewBtn, #aiTranslateBtn')) return;
+        var back = container.querySelector('#backBtn');
+        if (!back) return;
+        var role = App.state.user && App.state.user.role;
+        var html = '';
+        if (role === 'ADMIN' || role === 'EDITOR') {
+          html += '<button class="btn btn-ghost ai-btn" id="aiReviewBtn">' + spark('Semakan AI') + '</button>';
+        }
+        if (n.canEditEnglish) {
+          html += '<button class="btn btn-ghost ai-btn" id="aiTranslateBtn">' + spark('Versi BI') + '</button>';
+        }
+        if (!html) return;
+        var frag = App.h('<span class="row" style="gap:8px;display:inline-flex">' + html + '</span>');
+        back.parentNode.insertBefore(frag, back.nextSibling);
+        var rv = frag.querySelector('#aiReviewBtn');
+        if (rv) rv.addEventListener('click', function () { openReview(n, st); });
+        var tr = frag.querySelector('#aiTranslateBtn');
+        if (tr) tr.addEventListener('click', function () {
+          openTranslate(n, st, function () { App.navigate('news-detail', { newsId: n.newsId }); });
+        });
+      });
+      return r;
+    };
+  }
+
+  /* --------------------------------------- Media sosial: kapsyen AI */
+
+  var socialView = App.views['social'];
+  if (socialView) {
+    var origComposer = socialView.composerBody;
+    socialView.composerBody = function (preview) {
+      var html = origComposer.apply(this, arguments);
+      aiStatus().then(function (st) {
+        var cap = document.getElementById('socCaption');
+        var role = App.state.user && App.state.user.role;
+        if (!st.ready || !cap || document.getElementById('aiCaptionBtn') ||
+            (role !== 'ADMIN' && role !== 'EDITOR')) return;
+        var bar = App.h('<div class="row" style="gap:6px;margin:6px 0">' +
+          '<button type="button" class="btn btn-ghost btn-sm ai-btn" id="aiCaptionBtn">' +
+          spark('Jana kapsyen AI') + '</button>' +
+          '<select id="aiCaptionFor" style="width:auto"><option value="facebook">Facebook</option>' +
+          '<option value="instagram">Instagram</option><option value="linkedin">LinkedIn</option></select></div>');
+        cap.parentNode.insertBefore(bar, cap);
+        var cache = null;
+        bar.querySelector('#aiCaptionBtn').addEventListener('click', function () {
+          var btn = this;
+          var which = bar.querySelector('#aiCaptionFor').value;
+          var newsId = (socialView.currentNewsId || (App.views['news-detail'].news || {}).newsId);
+          var fill = function (c) {
+            cap.value = c[which] || '';
+            cap.dispatchEvent(new Event('input', { bubbles: true }));
+          };
+          if (cache) { fill(cache); return; }
+          busy(btn, 'Menjana…');
+          App.call('ai.social', { newsId: newsId }).then(function (c) {
+            done(btn); cache = c; fill(c);
+          }).catch(function (err) { done(btn); App.toast(err.message, 'error'); });
+        });
+      });
+      return html;
+    };
+  }
+})();
+</script>

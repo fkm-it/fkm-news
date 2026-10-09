@@ -180,6 +180,7 @@ var NewsService = (function () {
     base.seoKeywordsEn = String(n.SeoKeywordsEn || '');
 
     base.canEdit = Security.canEditNews(user, n);
+    base.canEditEnglish = Security.canEditNews(user, n) || user.role === ROLES.ADMIN;
     base.availableActions = WorkflowService.getAvailableActions(user, n);
     base.versions = GlobalSettings.get('FEATURE_VERSIONING') ? getVersions(newsId, users) : [];
     base.reviews = ReviewService.getForNews(newsId, users);
@@ -528,7 +529,42 @@ var NewsService = (function () {
     });
   }
 
+  /**
+   * Simpan versi Bahasa Inggeris sahaja (F8: daripada cadangan AI atau
+   * suntingan manual). Dibenarkan kepada pemilik semasa berita boleh
+   * disunting, atau kepada Admin pada sebarang status (cth. menambah versi
+   * BI kepada berita yang sudah diterbitkan).
+   */
+  function canEditEnglish(user, n) {
+    return Security.canEditNews(user, n) || user.role === ROLES.ADMIN;
+  }
+
+  function saveEnglish(user, newsId, data) {
+    data = data || {};
+    var res = Utils.withLock(function () {
+      var n = getRaw(newsId);
+      Security.requireViewNews(user, n);
+      if (!canEditEnglish(user, n)) {
+        throw Utils.appError('FORBIDDEN', 'Anda tidak boleh mengubah versi Inggeris berita ini.');
+      }
+      var patch = bilingualPatch_({
+        titleEn: data.titleEn, summaryEn: data.summaryEn, contentEn: data.contentEn
+      });
+      patch.UpdatedAt = Utils.now();
+      SheetDB.updateRow(CONFIG.SHEETS.NEWS, n._row, patch);
+      AuditService.log(user.userId, AUDIT_ACTION.UPDATE_NEWS, 'NEWS', newsId, '', '',
+        'Versi Bahasa Inggeris dikemas kini' + (data.source === 'ai' ? ' (cadangan AI)' : ''));
+      return { newsId: newsId, status: String(n.Status) };
+    });
+    if (res.status === STATUS.PUBLISHED) {
+      try { StaticSite.sync('versi BI ' + newsId); } catch (e) { }
+    }
+    return res;
+  }
+
   return {
+    canEditEnglish: canEditEnglish,
+    saveEnglish: saveEnglish,
     getRaw: getRaw,
     categoryMap: categoryMap,
     toListDto: toListDto,

@@ -128,6 +128,9 @@ var GlobalSettings = (function () {
 
     /* ---------- Notification ---------- */
     EMAIL_ENABLED:      { group: 'Notification', type: 'boolean', isPublic: false, def: true, desc: 'Hantar notifikasi e-mel' },
+    AI_ENABLED:         { group: 'Feature', type: 'boolean', isPublic: true, def: false, desc: 'Pembantu AI (Claude API): draf, semakan awal, terjemahan BI, kapsyen sosial. Perlu Script Property FKMNEWS_ANTHROPIC_KEY.' },
+    AI_MODEL:           { group: 'Feature', type: 'string', isPublic: false, def: 'claude-sonnet-5-5', desc: 'Model AI: claude-sonnet-5-5 (kualiti) atau claude-haiku-5-5 (jimat)' },
+    AI_MONTHLY_BUDGET_USD: { group: 'Feature', type: 'number', isPublic: false, def: 5, desc: 'Had perbelanjaan Claude API sebulan (USD). Panggilan AI ditolak apabila dicapai.' },
     REMINDER_ENABLED:   { group: 'Notification', type: 'boolean', isPublic: false, def: true, desc: 'Peringatan harian (Isnin–Jumaat) bagi berita tersangkut dalam semakan' },
     REMINDER_DAYS:      { group: 'Notification', type: 'number', isPublic: false, def: 2, desc: 'Berita dianggap tertunggak selepas berapa hari tanpa tindakan' },
     IN_APP_ENABLED:     { group: 'Notification', type: 'boolean', isPublic: true,  def: true, desc: 'Notifikasi dalam sistem' },
