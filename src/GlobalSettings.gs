@@ -208,6 +208,7 @@ var GlobalSettings = (function () {
     PUBLIC_PORTAL_ENABLED: { group: 'Links', type: 'boolean', isPublic: true, def: false, desc: 'Benarkan portal awam tanpa log masuk (perlu deployment berasingan)' },
     PUBLIC_PORTAL_URL:  { group: 'Links', type: 'string', isPublic: true, def: '', desc: 'ISI DI SINI: URL deployment Portal Awam yang berakhir dengan /exec. Digunakan oleh butang kongsi.' },
     PUBLIC_SITE_URL:    { group: 'Links', type: 'string', isPublic: true, def: '', desc: 'BIARKAN KOSONG melainkan berita turut diterbitkan di laman WordPress fakulti. Bukan untuk URL Apps Script.' },
+    STAFF_APP_URL:      { group: 'Links', type: 'string', isPublic: false, def: 'https://fkm-it.github.io/fkm-news/app/', desc: 'URL aplikasi staf (GitHub Pages). Digunakan dalam e-mel notifikasi dan e-mel alu-aluan. Untuk kembali ke URL lama, tampal URL /exec di sini.' },
     SHARE_ENABLED:      { group: 'Links', type: 'boolean', isPublic: true, def: true, desc: 'Papar butang kongsi pada halaman bacaan' },
     SHOW_QUICK_LINKS:   { group: 'Links', type: 'boolean', isPublic: true, def: true, desc: 'Papar panel pautan pantas' },
     SIDEBAR_COLLAPSIBLE:{ group: 'Layout', type: 'boolean', isPublic: true, def: true, desc: 'Benarkan sidebar dikuncupkan' },

@@ -1,6 +1,6 @@
 {
   "name": "fkm-news",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "FKM News Management & Publication Workflow System (Apps Script)",
   "scripts": {

@@ -56,7 +56,7 @@ const csp = [
  * @param {string} rel      laluan relatif ke akar Pages ('' atau '../')
  * @param {string} manifest nama fail manifest
  */
-function buildPage(srcFile, scriptlets, bridge, rel, manifest, build) {
+function buildPage(srcFile, scriptlets, bridge, rel, manifest, build, extraHead) {
   let html = fs.readFileSync(path.join(SRC, srcFile), 'utf8');
 
   html = html.replace(/<\?!=\s*include\(\s*['"]([\w-]+)['"]\s*\);?\s*\?>/g,
@@ -78,7 +78,7 @@ function buildPage(srcFile, scriptlets, bridge, rel, manifest, build) {
     `<link rel="apple-touch-icon" href="${rel}icons/apple-touch-icon.png">`,
     '<meta name="apple-mobile-web-app-capable" content="yes">',
     '<meta name="mobile-web-app-capable" content="yes">'
-  ].join('\n  ');
+  ].concat(extraHead || []).join('\n  ');
   html = html.replace(/(<meta charset[^>]*>)/i, `$1\n  ${head}`);
 
   const boot =
@@ -108,7 +108,8 @@ const portalHtml = buildPage('Public.html', [
 const appHtml = buildPage('Index.html', [
   [/'<\?=\s*bootPage\s*\?>'/g, `(${qp('page')} || (${qp('id')} ? 'portal-article' : 'dashboard'))`],
   [/'<\?=\s*bootId\s*\?>'/g, qp('id')]
-], 'app-bridge.js', '../', 'manifest.webmanifest', build);
+], 'app-bridge.js', '../', 'manifest.webmanifest', build,
+  ['<meta name="robots" content="noindex, nofollow">']);   /* jangan diindeks enjin carian */
 
 /* tulis */
 fs.rmSync(out, { recursive: true, force: true });

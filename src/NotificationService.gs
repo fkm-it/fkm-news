@@ -59,6 +59,59 @@ var NotificationService = (function () {
     return record;
   }
 
+  /**
+   * URL aplikasi staf untuk pautan dalam e-mel: STAFF_APP_URL (GitHub Pages)
+   * jika ditetapkan, jika tidak URL /exec deployment ini.
+   */
+  function appUrl_() {
+    var url = '';
+    try { url = String(GlobalSettings.get('STAFF_APP_URL') || '').trim(); } catch (e) { }
+    if (/^https:\/\//i.test(url)) return url;
+    try { url = ScriptApp.getService().getUrl() || ''; } catch (e) { url = ''; }
+    return url;
+  }
+
+  var ROLE_LABEL_ = { AUTHOR: 'Penulis', ADMIN: 'Pentadbir', EDITOR: 'Editor' };
+
+  /**
+   * E-mel alu-aluan apabila Admin mendaftarkan pengguna baharu.
+   * Dihantar walaupun EMAIL_ENABLED dimatikan: tanpanya pengguna baharu
+   * tidak tahu di mana untuk log masuk. Kegagalan tidak membatalkan
+   * pendaftaran (dicatat dalam log sahaja).
+   */
+  function sendWelcome(user) {
+    if (!user || !user.email) return false;
+    try {
+      var s = GlobalSettings.getPublicSettings();
+      var url = appUrl_();
+      var role = ROLE_LABEL_[String(user.role).toUpperCase()] || user.role;
+      var subject = 'Akaun ' + s.SYSTEM_SHORT_NAME + ' anda telah didaftarkan';
+      var message = 'Salam ' + user.name + ', anda telah didaftarkan dalam ' +
+        s.SYSTEM_SHORT_NAME + ' sebagai ' + role + '. Untuk log masuk, buka pautan di bawah dan ' +
+        'masukkan e-mel ini (' + user.email + '). Kod 6 digit akan dihantar ke e-mel anda. ' +
+        'Tiada kata laluan diperlukan.';
+      var esc = Security.escapeHtml;
+      var html = emailBody_(subject, message, '', '').replace(
+        '</p></div>',
+        '</p>' + (url ? '<a href="' + esc(url) + '" style="display:inline-block;background:' +
+          s.PRIMARY_COLOR + ';color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;' +
+          'font-size:14px">Log masuk ' + esc(s.SYSTEM_SHORT_NAME) + '</a>' +
+          '<p style="font-size:12px;color:' + s.MUTED_COLOR + ';margin:14px 0 0">' + esc(url) + '</p>' : '') +
+        '</div>');
+      MailApp.sendEmail({
+        to: user.email,
+        subject: subject,
+        htmlBody: html,
+        body: message + '\n\n' + url,
+        name: GlobalSettings.get('EMAIL_SENDER_NAME')
+      });
+      return true;
+    } catch (e) {
+      console.error('WELCOME_FAIL', user.email, String(e));
+      return false;
+    }
+  }
+
   function emailBody_(subject, message, newsId, webAppUrl) {
     var s = GlobalSettings.getPublicSettings();
     var link = webAppUrl ? (webAppUrl + '?page=news-detail&id=' + encodeURIComponent(newsId)) : '';
@@ -91,8 +144,7 @@ var NotificationService = (function () {
         return false;
       }
       var prefix = GlobalSettings.get('EMAIL_SUBJECT_PREFIX');
-      var url = '';
-      try { url = ScriptApp.getService().getUrl(); } catch (e) { }
+      var url = appUrl_();
       MailApp.sendEmail({
         to: toEmail,
         subject: (prefix ? prefix + ' ' : '') + subject,
@@ -185,6 +237,8 @@ var NotificationService = (function () {
     TEMPLATES: TEMPLATES,
     createInApp: createInApp,
     sendEmail: sendEmail,
+    sendWelcome: sendWelcome,
+    appUrl: appUrl_,
     notifyUser: notifyUser,
     notifyRole: notifyRole,
     listForUser: listForUser,

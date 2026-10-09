@@ -1,5 +1,12 @@
 # Changelog — FKM News
 
+## 1.3.1 — 2026-10-09 · F4.1 Penyerahan aplikasi staf
+
+- **E-mel alu-aluan** apabila Admin mendaftarkan pengguna (Pengguna → Tambah). E-mel menyatakan peranan dan menyertakan butang "Log masuk" ke aplikasi staf. Ia dihantar walaupun `EMAIL_ENABLED` dimatikan, dan kegagalan menghantar tidak membatalkan pendaftaran.
+- Tetapan baharu **`STAFF_APP_URL`** (Links), lalai `https://fkm-it.github.io/fkm-news/app/`. Semua pautan "Buka berita" dalam e-mel notifikasi kini menuju ke aplikasi staf di GitHub Pages, bukan `/exec`.
+- `/app/` bertanda `noindex, nofollow` supaya halaman log masuk tidak muncul dalam carian Google.
+- 4 ujian baharu (`tests/f41.test.js`).
+
 ## 1.3.0 — 2026-10-09 · F4 Aplikasi staf di GitHub Pages (log masuk OTP e-mel)
 
 Aplikasi staf kini juga boleh dibuka di **`https://fkm-it.github.io/fkm-news/app/`**. Log masuk menggunakan kod 6 digit ke e-mel yang berdaftar dalam sheet USERS, tanpa kata laluan. Semua skrin sedia ada kekal sama. URL `/exec` (log masuk Google) masih berfungsi sebagai sandaran.

@@ -320,7 +320,9 @@ function route_(action, p, user) {
 
     case 'user.create':
       Security.requirePermission(user, 'user.manage');
-      return UserService.createUser(p.data, user.userId);
+      var createdUser = UserService.createUser(p.data, user.userId);
+      NotificationService.sendWelcome(createdUser);
+      return createdUser;
 
     case 'user.update':
       Security.requirePermission(user, 'user.manage');
