@@ -1,0 +1,436 @@
+<!--
+  public-extras.html — alat pembaca pada halaman berita (F9).
+
+    🔊 Dengar           Web Speech API pelayar (percuma, tiada pelayan).
+    ⚡ Ringkasan 30 saat ayat utama setiap perenggan, dipetik automatik
+                        daripada kandungan (gaya FKM: satu idea setiap
+                        perenggan), maksimum ~75 patah perkataan.
+    ▦ Kod QR            imej QR bagi pautan kongsi, untuk poster/skrin.
+
+  Tambahan sahaja: Public.html memanggil PubExtras.attach(artikel, bahasa)
+  selepas artikel dirender. Jika fail ini tiada, halaman berfungsi seperti
+  biasa. Tiada '//' dalam blok skrip (Apps Script memotongnya).
+-->
+<style>
+.read-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 22px; }
+.rt-btn {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 36px;
+  padding: 0 13px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border-color); background: var(--surface-color);
+  color: var(--text-color); font: inherit; font-size: .8rem; font-weight: 500;
+  transition: background var(--dur-fast, .15s) ease, border-color var(--dur-fast, .15s) ease;
+}
+.rt-btn:hover { border-color: var(--primary-color); }
+a.rt-btn { text-decoration: none; }
+.rt-btn[aria-pressed="true"] {
+  background: var(--primary-color); border-color: var(--primary-color); color: #fff;
+}
+.rt-btn svg { flex: none; }
+.rt-btn:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.rt-note { flex-basis: 100%; font-size: .74rem; color: var(--muted-color); margin: 2px 2px 0; }
+.kp-box {
+  margin: 0 0 24px; padding: 16px 18px 14px; border-radius: var(--radius);
+  background: var(--surface-color); border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--accent-color) 9%, var(--surface-color));
+  border: 1px solid color-mix(in srgb, var(--accent-color) 35%, var(--border-color));
+}
+.kp-box h2 {
+  margin: 0 0 8px; font-size: .78rem; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--primary-color);
+}
+.kp-box ul { margin: 0; padding-left: 1.15em; }
+.kp-box li { margin: 0 0 6px; line-height: 1.55; }
+.kp-box .kp-foot {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: 10px; font-size: .72rem; color: var(--muted-color);
+}
+.qr-dialog {
+  border: 0; border-radius: var(--radius-lg); padding: 22px; width: min(320px, calc(100vw - 32px));
+  background: var(--surface-color); color: var(--text-color); text-align: center;
+  box-shadow: var(--shadow-3);
+}
+.qr-dialog::backdrop { background: rgba(8, 15, 26, .55); }
+.qr-dialog img {
+  width: 220px; height: 220px; max-width: 100%; display: block; margin: 6px auto 12px;
+  background: #fff; border-radius: var(--radius-sm);
+}
+.qr-dialog h2 { font-size: 1rem; margin: 0 0 4px; }
+.qr-dialog p { font-size: .78rem; color: var(--muted-color); margin: 0 0 14px; word-break: break-all; }
+.qr-dialog .qr-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+@media print {
+  .read-tools, .kp-foot button { display: none !important; }
+}
+</style>
+<script>
+/* ==========================================================================
+   PubExtras — dengar, ringkasan 30 saat dan kod QR untuk pembaca.
+   ========================================================================== */
+var PubExtras = (function () {
+  'use strict';
+
+  var WORD_BUDGET = 75;      /* ~30 saat bacaan/dengaran */
+  var MAX_POINTS = 5;
+  var MIN_WORDS = 6;
+  var QR_BASE = 'https:' + '\/\/api.qrserver.com/v1/create-qr-code/';
+
+  var TXT = {
+    bm: {
+      listen: 'Dengar', pause: 'Jeda', resume: 'Sambung', stop: 'Henti',
+      summary: 'Ringkasan 30 saat', summaryTitle: 'Ringkasan 30 saat',
+      summaryNote: 'Dipetik automatik daripada ayat utama setiap perenggan.',
+      listenSummary: 'Dengar ringkasan', qr: 'Kod QR',
+      qrTitle: 'Imbas untuk membaca berita ini', qrOpen: 'Buka imej QR', close: 'Tutup',
+      qrFail: 'Kod QR memerlukan sambungan internet.',
+      noVoice: 'Suara Bahasa Melayu tiada pada peranti ini; suara lalai digunakan.'
+    },
+    en: {
+      listen: 'Listen', pause: 'Pause', resume: 'Resume', stop: 'Stop',
+      summary: '30-second summary', summaryTitle: '30-second summary',
+      summaryNote: 'Automatically taken from the lead sentence of each paragraph.',
+      listenSummary: 'Listen to summary', qr: 'QR code',
+      qrTitle: 'Scan to read this story', qrOpen: 'Open QR image', close: 'Close',
+      qrFail: 'The QR code needs an internet connection.',
+      noVoice: 'No English voice on this device; the default voice is used.'
+    }
+  };
+
+  var ICON = {
+    listen: '<path d="M4 9.5v5h3.5L12 19V5L7.5 9.5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>',
+    pause: '<path d="M8 5v14M16 5v14"/>',
+    stop: '<rect x="6" y="6" width="12" height="12" rx="1.5"/>',
+    summary: '<path d="M13 3 5 13.5h6L10 21l8-10.5h-6Z"/>',
+    qr: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/>' +
+        '<rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/>'
+  };
+
+  var current = null;        /* { a, lang, root } untuk artikel yang dipaparkan */
+  var observer = null;
+
+  function t(key) { return (TXT[current && current.lang] || TXT.bm)[key] || key; }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function icon(name) {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      ICON[name] + '</svg>';
+  }
+
+  /* ------------------------------------------------------------ Teks */
+
+  function clean(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
+  function wordCount(s) { return clean(s) ? clean(s).split(' ').length : 0; }
+
+  /** Blok teks (perenggan, item senarai, subtajuk) daripada HTML kandungan. */
+  function blocks(html) {
+    var tpl = document.createElement('template');
+    tpl.innerHTML = String(html || '');
+    var out = [];
+    tpl.content.querySelectorAll('p, li, h2, h3, h4, blockquote').forEach(function (n) {
+      if (n.closest('li') && n.tagName !== 'LI') return;
+      if (n.tagName === 'P' && n.closest('blockquote')) return;
+      var s = clean(n.textContent);
+      if (s) out.push({ tag: n.tagName, text: s });
+    });
+    if (!out.length) {
+      var s = clean(tpl.content.textContent);
+      if (s) out.push({ tag: 'P', text: s });
+    }
+    return out;
+  }
+
+  /** Pecah teks kepada ayat. Gelaran gaya FKM tiada titik (Prof Dr), jadi
+      pemisahan pada . ! ? diikuti ruang + huruf besar/angka/petikan memadai. */
+  function sentences(text) {
+    var s = clean(text);
+    if (!s) return [];
+    var parts = s.replace(/([.!?…]["”’']?)\s+(?=[A-Z0-9"“‘(À-Ý])/g, '$1\u0001').split('\u0001');
+    return parts.map(clean).filter(Boolean);
+  }
+
+  function trimWords(s, max) {
+    var w = clean(s).split(' ');
+    return w.length <= max ? clean(s) : w.slice(0, max).join(' ').replace(/[,;:]$/, '') + '…';
+  }
+
+  /**
+   * Ringkasan 30 saat: ayat pertama setiap perenggan, mengikut susunan,
+   * sehingga bajet perkataan. Ayat yang sama dengan ringkasan (lead) atau
+   * terlalu pendek dilangkau.
+   */
+  function keyPoints(html, summary) {
+    var lead = clean(summary).toLowerCase();
+    var points = [], words = 0;
+    blocks(html).forEach(function (b) {
+      if (points.length >= MAX_POINTS || words >= WORD_BUDGET) return;
+      if (b.tag !== 'P' && b.tag !== 'LI') return;
+      var first = sentences(b.text)[0] || '';
+      if (wordCount(first) < MIN_WORDS) return;
+      first = trimWords(first, 40);
+      var low = first.toLowerCase();
+      if (lead && (lead.indexOf(low.replace(/…$/, '')) !== -1 || low.indexOf(lead) !== -1)) return;
+      if (points.some(function (p) { return p.toLowerCase() === low; })) return;
+      var n = wordCount(first);
+      if (points.length >= 2 && words + n > WORD_BUDGET) return;
+      points.push(first);
+      words += n;
+    });
+    return points;
+  }
+
+  /** Teks penuh untuk dibacakan. */
+  function readingText(a) {
+    var parts = [a.title, a.summary].map(clean).filter(Boolean);
+    blocks(a.content).forEach(function (b) { parts.push(b.text); });
+    return parts.map(function (p) { return /[.!?…]$/.test(p) ? p : p + '.'; }).join(' ');
+  }
+
+  /** Cebisan ≤ 220 aksara — Chrome menghentikan utterance panjang (~15 s). */
+  function chunks(text, max) {
+    max = max || 220;
+    var out = [], buf = '';
+    sentences(text).forEach(function (s) {
+      while (s.length > max) {
+        var cut = s.lastIndexOf(' ', max);
+        if (cut < 40) cut = max;
+        if (buf) { out.push(buf); buf = ''; }
+        out.push(s.slice(0, cut).trim());
+        s = s.slice(cut).trim();
+      }
+      if (buf && (buf + ' ' + s).length > max) { out.push(buf); buf = s; }
+      else buf = buf ? buf + ' ' + s : s;
+    });
+    if (buf) out.push(buf);
+    return out;
+  }
+
+  /* ------------------------------------------------------- Pertuturan */
+
+  var tts = { playing: false, paused: false, mode: '' };
+
+  function ttsSupported() {
+    return typeof window.speechSynthesis !== 'undefined' &&
+      typeof window.SpeechSynthesisUtterance !== 'undefined';
+  }
+
+  /** Pilih suara: BM → ms-* kemudian id-* (sebutan hampir sama); BI → en-GB, en-*. */
+  function pickVoice(voices, lang) {
+    var prefs = lang === 'en' ? ['en-gb', 'en-my', 'en'] : ['ms', 'id', 'in'];
+    voices = voices || [];
+    for (var i = 0; i < prefs.length; i++) {
+      for (var j = 0; j < voices.length; j++) {
+        var vl = String(voices[j].lang || '').toLowerCase().replace('_', '-');
+        if (vl === prefs[i] || vl.indexOf(prefs[i] + '-') === 0) {
+          return voices[j];
+        }
+      }
+    }
+    return null;
+  }
+
+  function speak(text, mode) {
+    if (!ttsSupported()) return;
+    var synth = window.speechSynthesis;
+    synth.cancel();
+    var voice = pickVoice(synth.getVoices(), current.lang);
+    var parts = chunks(text);
+    tts = { playing: true, paused: false, mode: mode };
+    showVoiceNote(!voice && synth.getVoices().length > 0);
+    parts.forEach(function (p, i) {
+      var u = new SpeechSynthesisUtterance(p);
+      u.lang = voice ? voice.lang : (current.lang === 'en' ? 'en-GB' : 'ms-MY');
+      if (voice) u.voice = voice;
+      u.rate = 1;
+      if (i === parts.length - 1) u.onend = function () { stopSpeech(); };
+      u.onerror = function (e) {
+        if (e && (e.error === 'interrupted' || e.error === 'canceled')) return;
+        stopSpeech();
+      };
+      synth.speak(u);
+    });
+    renderTts();
+  }
+
+  function stopSpeech() {
+    if (ttsSupported()) window.speechSynthesis.cancel();
+    tts = { playing: false, paused: false, mode: '' };
+    renderTts();
+  }
+
+  function togglePause() {
+    var synth = window.speechSynthesis;
+    if (tts.paused) { synth.resume(); tts.paused = false; }
+    else { synth.pause(); tts.paused = true; }
+    renderTts();
+  }
+
+  function showVoiceNote(show) {
+    var n = current && current.root.querySelector('[data-rt-note]');
+    if (!n) return;
+    n.hidden = !show;
+    n.textContent = show ? t('noVoice') : '';
+  }
+
+  function renderTts() {
+    if (!current) return;
+    var root = current.root;
+    var main = root.querySelector('[data-rt="listen"]');
+    var stop = root.querySelector('[data-rt="stop"]');
+    if (!main) return;
+    var label = !tts.playing ? t('listen') : tts.paused ? t('resume') : t('pause');
+    main.innerHTML = icon(tts.playing && !tts.paused ? 'pause' : 'listen') + '<span>' + esc(label) + '</span>';
+    main.setAttribute('aria-pressed', tts.playing ? 'true' : 'false');
+    if (stop) stop.hidden = !tts.playing;
+  }
+
+  /* -------------------------------------------------------------- QR */
+
+  function qrUrl(link, size) {
+    size = size || 440;
+    return QR_BASE + '?size=' + size + 'x' + size + '&margin=12&ecc=M&data=' + encodeURIComponent(link);
+  }
+
+  function openQr() {
+    var a = current.a;
+    var old = document.getElementById('qrDialog');
+    if (old) old.remove();
+    var d = document.createElement('dialog');
+    d.id = 'qrDialog';
+    d.className = 'qr-dialog';
+    d.setAttribute('aria-labelledby', 'qrTitle');
+    d.innerHTML =
+      '<h2 id="qrTitle">' + esc(t('qrTitle')) + '</h2>' +
+      '<img alt="' + esc(t('qr') + ': ' + a.title) + '" src="' + esc(qrUrl(a.shareUrl)) + '">' +
+      '<p>' + esc(a.shareUrl) + '</p>' +
+      '<div class="qr-actions">' +
+        '<a class="rt-btn" href="' + esc(qrUrl(a.shareUrl, 1000)) + '" target="_blank" rel="noopener">' +
+          esc(t('qrOpen')) + '</a>' +
+        '<button type="button" class="rt-btn" data-qr-close>' + esc(t('close')) + '</button>' +
+      '</div>';
+    document.body.appendChild(d);
+    d.querySelector('img').addEventListener('error', function () {
+      this.replaceWith(Object.assign(document.createElement('p'), { textContent: t('qrFail') }));
+    });
+    d.querySelector('[data-qr-close]').addEventListener('click', function () { d.close(); });
+    d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+    d.addEventListener('close', function () { d.remove(); });
+    if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+  }
+
+  /* ------------------------------------------------------- Ringkasan */
+
+  function toggleSummary(btn) {
+    var wrap = current.root.closest('.read-wrap') || document;
+    var box = wrap.querySelector('.kp-box');
+    if (box) {
+      box.remove();
+      btn.setAttribute('aria-pressed', 'false');
+      if (tts.mode === 'summary') stopSpeech();
+      return;
+    }
+    var pts = current.points;
+    box = document.createElement('section');
+    box.className = 'kp-box';
+    box.setAttribute('aria-label', t('summaryTitle'));
+    box.innerHTML = '<h2>' + esc(t('summaryTitle')) + '</h2><ul>' +
+      pts.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' +
+      '<div class="kp-foot"><span>' + esc(t('summaryNote')) + '</span>' +
+      (ttsSupported() ? '<button type="button" class="rt-btn" data-kp-listen>' + icon('listen') +
+        '<span>' + esc(t('listenSummary')) + '</span></button>' : '') + '</div>';
+    current.root.insertAdjacentElement('afterend', box);
+    btn.setAttribute('aria-pressed', 'true');
+    var l = box.querySelector('[data-kp-listen]');
+    if (l) l.addEventListener('click', function () {
+      speak(current.a.title + '. ' + pts.join(' '), 'summary');
+    });
+  }
+
+  /* ---------------------------------------------------------- Pasang */
+
+  /**
+   * @param {Object} a    artikel daripada public.article (title, summary, content, shareUrl)
+   * @param {string} lang 'bm' | 'en'
+   */
+  function attach(a, lang) {
+    stopSpeech();
+    var wrap = document.querySelector('.read-wrap');
+    if (!wrap || !a) return;
+    var old = wrap.querySelector('.read-tools');
+    if (old) old.remove();
+
+    var root = document.createElement('div');
+    root.className = 'read-tools';
+    root.setAttribute('role', 'toolbar');
+    current = { a: a, lang: lang === 'en' ? 'en' : 'bm', root: root, points: keyPoints(a.content, a.summary) };
+    root.setAttribute('aria-label', current.lang === 'en' ? 'Reading tools' : 'Alat pembaca');
+
+    var html = '';
+    if (ttsSupported()) {
+      html += '<button type="button" class="rt-btn" data-rt="listen" aria-pressed="false"></button>' +
+        '<button type="button" class="rt-btn" data-rt="stop" hidden>' + icon('stop') +
+        '<span>' + esc(t('stop')) + '</span></button>';
+    }
+    if (current.points.length >= 2) {
+      html += '<button type="button" class="rt-btn" data-rt="summary" aria-pressed="false">' +
+        icon('summary') + '<span>' + esc(t('summary')) + '</span></button>';
+    }
+    if (a.shareUrl) {
+      html += '<button type="button" class="rt-btn" data-rt="qr">' + icon('qr') +
+        '<span>' + esc(t('qr')) + '</span></button>';
+    }
+    if (!html) return;
+    html += '<p class="rt-note" data-rt-note hidden></p>';
+    root.innerHTML = html;
+
+    var anchor = wrap.querySelector('.share-row') || wrap.querySelector('.read-byline');
+    if (anchor) anchor.insertAdjacentElement('afterend', root);
+    else wrap.insertBefore(root, wrap.firstChild);
+
+    root.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-rt]');
+      if (!b) return;
+      var k = b.dataset.rt;
+      if (k === 'listen') {
+        if (!tts.playing || tts.mode !== 'full') speak(readingText(a), 'full');
+        else togglePause();
+      } else if (k === 'stop') stopSpeech();
+      else if (k === 'summary') toggleSummary(b);
+      else if (k === 'qr') openQr();
+    });
+    renderTts();
+
+    /* Henti bacaan apabila pembaca meninggalkan artikel. */
+    var view = document.getElementById('view');
+    if (view && !observer && typeof MutationObserver !== 'undefined') {
+      observer = new MutationObserver(function () {
+        if (current && !document.body.contains(current.root)) {
+          stopSpeech();
+          current = null;
+        }
+      });
+      observer.observe(view, { childList: true });
+    }
+  }
+
+  /* Suara dimuat secara tak segerak dalam Chrome. */
+  if (ttsSupported() && 'onvoiceschanged' in window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = function () { };
+  }
+  window.addEventListener('pagehide', function () { if (ttsSupported()) window.speechSynthesis.cancel(); });
+
+  return {
+    attach: attach,
+    keyPoints: keyPoints,
+    sentences: sentences,
+    chunks: chunks,
+    pickVoice: pickVoice,
+    readingText: readingText,
+    qrUrl: qrUrl
+  };
+})();
+window.PubExtras = PubExtras;
+</script>

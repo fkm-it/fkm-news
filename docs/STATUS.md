@@ -1,6 +1,6 @@
 # Status naik taraf FKM News (kaedah D'Ruang)
 
-**Dikemas kini:** 9 Okt 2026 · Versi live: **v1.4.0**
+**Dikemas kini:** 9 Okt 2026 · Versi live: **v1.7.0**
 **Repo:** github.com/fkm-it/fkm-news (awam) · CI/CD: setiap push ke `main` → ujian → `clasp push` → kemas kini deployment → GitHub Pages
 
 ## URL
@@ -20,10 +20,10 @@
 | F4 App staf Pages + OTP (v1.3.0) | ✅ deploy, menunggu semakan Za | `WebAuth.gs`, `apiAs_`, `UserPrefs.gs`, skrin log masuk |
 | F4.1 Penyerahan app staf (v1.3.1) | ✅ deploy | E-mel alu-aluan semasa Admin daftar pengguna, `STAFF_APP_URL` untuk pautan e-mel, `noindex` pada /app/ |
 | F5 Portal Statik Pantas (v1.4.0) | ✅ live (token ditetapkan, rebuild pertama 9 Okt 15:18: 8 berita) | `StaticSite.gs` tolak `data/` bila terbit; `/b/<slug>/` OG + sitemap; bridge statik dahulu |
-| F6 WordPress REST push | ⏳ | CPT `fkm_news` di mech.utm.my/fkmnews |
-| F7 Peringatan tertunggak | ⏳ | Berita tersangkut dalam semakan > N hari → peringatan |
-| F8 AI staf (Claude API) | ⏳ | Pembantu Penulis, semakan awal Admin, terjemahan BI, alt-text, kapsyen sosial; skill `gaya-berita-fkm` sebagai prompt |
-| F9 Pembaca: dengar & ringkasan | ⏳ | Butang Dengar (TTS pelayar), ringkasan 30 saat, kod QR |
+| F6 WordPress REST push | ⏸ ditangguh (keputusan Za) | CPT `fkm_news` di mech.utm.my/fkmnews |
+| F7 Peringatan tertunggak (v1.5.0) | ✅ live | `ReminderService.gs`: satu ringkasan sehari bekerja kepada Admin/Editor/Penulis; `REMINDER_ENABLED`, `REMINDER_DAYS` |
+| F8 AI staf (v1.6.0) | ✅ live, mati secara lalai | Pembantu Penulis, Semakan AI, Versi BI, kapsyen sosial; aktif selepas `FKMNEWS_ANTHROPIC_KEY` + `AI_ENABLED` (DEPLOYMENT §1.4). Bil API berasingan daripada langganan Claude.ai |
+| F9 Pembaca (v1.7.0) | ✅ deploy | `public-extras.html`: Dengar (suara pelayar, ms→id), Ringkasan 30 saat (ayat utama setiap perenggan, tanpa AI/kos), Kod QR pautan kongsi |
 | F10 Kongsi & buletin | ⏳ | Kad kongsi 1080×1080, buletin bulanan PDF/e-mel, arkib garis masa |
 
 ## Keputusan Za

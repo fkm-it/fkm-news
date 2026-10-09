@@ -21,12 +21,30 @@ def ignorable(text):
     # Gambar demo dari internet disekat dalam CI/kontena; bukan pepijat portal.
     return 'ERR_' in text or 'Failed to load resource' in text or 'picsum' in text
 
+FAKE_TTS = '''
+(() => {
+  window.__spoken = [];
+  const synth = {
+    speaking: false, paused: false, onvoiceschanged: null,
+    getVoices: () => [{ lang: 'id-ID', name: 'Palsu Indonesia' }, { lang: 'en-GB', name: 'Palsu UK' }],
+    speak(u) { window.__spoken.push({ text: u.text, lang: u.lang }); this.speaking = true; },
+    cancel() { this.speaking = false; },
+    pause() { this.paused = true; }, resume() { this.paused = false; }
+  };
+  Object.defineProperty(window, 'speechSynthesis', { value: synth, configurable: true });
+  window.SpeechSynthesisUtterance = function (text) { this.text = text; };
+})();
+'''
+
 with sync_playwright() as p:
     exe = '/opt/pw-browsers/chromium' if os.path.exists('/opt/pw-browsers/chromium') and os.path.isfile('/opt/pw-browsers/chromium') else None
     browser = p.chromium.launch(executable_path=exe) if exe else p.chromium.launch()
     for name, vp in (('telefon-360', {'width': 360, 'height': 780}), ('desktop', {'width': 1280, 'height': 860})):
         print(f'[{name}]')
         ctx = browser.new_context(viewport=vp, device_scale_factor=2 if name.startswith('telefon') else 1)
+        # Chromium headless tiada enjin suara; ganti speechSynthesis dengan
+        # palsu yang merekod teks supaya logik F9 boleh disahkan.
+        ctx.add_init_script(FAKE_TTS)
         page = ctx.new_page()
         errors = []
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' and not ignorable(m.text) else None)
@@ -52,6 +70,40 @@ with sync_playwright() as p:
         sw = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
         check(sw <= 1, f'artikel: tiada skrol mendatar (lebihan {sw}px)')
         page.screenshot(path=f'{SHOTS}/{name}-2-artikel.png', full_page=False)
+
+        # ---------------------------------------------- F9: alat pembaca
+        page.wait_for_selector('.read-tools', timeout=5000)
+        check(page.locator('[data-rt="listen"]').count() == 1, 'F9: butang Dengar dipaparkan')
+        check(page.locator('[data-rt="qr"]').count() == 1, 'F9: butang Kod QR dipaparkan')
+        if page.locator('[data-rt="summary"]').count():
+            page.click('[data-rt="summary"]')
+            n = page.locator('.kp-box li').count()
+            check(2 <= n <= 5, f'F9: ringkasan 30 saat ({n} perkara)')
+            words = page.evaluate("() => document.querySelector('.kp-box ul').innerText.split(/\\s+/).length")
+            check(words <= 115, f'F9: ringkasan pendek ({words} perkataan)')
+            page.screenshot(path=f'{SHOTS}/{name}-2b-ringkasan.png', full_page=False)
+            page.click('[data-rt="summary"]')
+            check(page.locator('.kp-box').count() == 0, 'F9: ringkasan boleh ditutup')
+        else:
+            check(False, 'F9: butang ringkasan 30 saat dipaparkan')
+        page.click('[data-rt="listen"]')
+        page.wait_for_timeout(300)
+        check(page.get_attribute('[data-rt="listen"]', 'aria-pressed') == 'true', 'F9: Dengar bermula')
+        spoken = page.evaluate("() => window.__spoken")
+        check(len(spoken) >= 2 and all(len(x['text']) <= 220 for x in spoken), f'F9: teks dibaca dalam {len(spoken)} cebisan ≤220 aksara')
+        check(spoken and spoken[0]['lang'] == 'id-ID', 'F9: suara BM jatuh balik ke id-ID')
+        page.click('[data-rt="stop"]')
+        check(page.get_attribute('[data-rt="listen"]', 'aria-pressed') == 'false', 'F9: Henti berfungsi')
+        page.click('[data-rt="qr"]')
+        page.wait_for_selector('#qrDialog[open]', timeout=3000)
+        src = page.evaluate("() => (document.querySelector('#qrDialog img') || {}).src || 'gagal-dimuat'")
+        check('qrserver' in src or src == 'gagal-dimuat', 'F9: dialog Kod QR dibuka')
+        sw = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+        check(sw <= 1, f'F9: tiada skrol mendatar dengan dialog QR (lebihan {sw}px)')
+        page.screenshot(path=f'{SHOTS}/{name}-2c-qr.png', full_page=False)
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(200)
+        check(page.locator('#qrDialog').count() == 0, 'F9: dialog QR ditutup dengan Esc')
 
         page.goto(BASE + '?view=reader&id=NEWS-2026-00001&lang=en', wait_until='domcontentloaded')
         page.wait_for_selector('.read-wrap', timeout=15000)

@@ -1,5 +1,15 @@
 # Changelog — FKM News
 
+## 1.7.0 — 2026-10-09 · F9 Alat pembaca: Dengar, Ringkasan 30 saat, Kod QR
+
+Tambahan pada halaman berita portal awam (GitHub Pages dan /exec). Paparan sedia ada tidak diubah; satu baris toolbar baharu muncul di bawah butang Kongsi.
+
+- **🔊 Dengar**: berita dibacakan oleh suara pelayar (Web Speech API, percuma, tanpa pelayan). BM memilih suara `ms-*`, kemudian `id-*`; BI memilih `en-GB`. Teks dipecah kepada cebisan ≤ 220 aksara (Chrome menghentikan bacaan panjang). Butang Jeda/Sambung/Henti. Bacaan berhenti apabila pembaca meninggalkan artikel.
+- **⚡ Ringkasan 30 saat**: ayat utama setiap perenggan (gaya FKM: satu idea setiap perenggan), maksimum ~75 patah perkataan, ringkasan berita tidak diulang. Tanpa AI, tanpa kos, berfungsi serta-merta untuk semua berita lama. Butang "Dengar ringkasan". Disembunyikan jika berita terlalu pendek.
+- **▦ Kod QR**: kod QR untuk pautan kongsi berita (untuk poster dan skrin). Imej dijana oleh api.qrserver.com (hanya pautan awam berita dihantar); butang "Buka imej QR" untuk versi resolusi tinggi.
+- `src/public-extras.html` (baharu) dimuatkan oleh `Public.html`; satu panggilan `PubExtras.attach()` selepas artikel dirender. Tanpa fail itu, portal berfungsi seperti dahulu.
+- 6 ujian baharu (`tests/extras.test.js`) + E2E (suara tiruan; ringkasan, dengar/henti, dialog QR pada 360px dan desktop). Data demo kini mempunyai satu berita gaya FKM berbilang perenggan.
+
 ## 1.6.0 — 2026-10-09 · F8 Pembantu AI untuk staf (Claude API)
 
 Mati secara lalai. Ia hanya aktif selepas pentadbir menetapkan kunci API dan menghidupkan `AI_ENABLED`. Bil Claude API berasingan daripada langganan Claude.ai.

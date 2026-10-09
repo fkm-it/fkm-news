@@ -234,6 +234,8 @@
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
+  <?!= include('public-extras'); ?>
+
   <script>
   /* ==========================================================================
      Halaman pembaca awam.
@@ -727,6 +729,8 @@
         bindBack();
         bindCards();
         bindShare(a);
+        /* F9: alat pembaca (dengar, ringkasan 30 saat, QR) — public-extras.html */
+        if (window.PubExtras) window.PubExtras.attach(a, state.lang);
       }).catch(function (e) { showError(e, 'public.article'); });
     }
 
