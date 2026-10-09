@@ -1,6 +1,6 @@
 /* sw.js — FKM News (portal awam). Versi diganti oleh build-web.js. */
 var CACHE = 'fkmnews-__BUILD__';
-var SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+var SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './app/', './app/index.html'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }));
@@ -26,7 +26,7 @@ self.addEventListener('fetch', function (e) {
       return res;
     }).catch(function () {
       return caches.match(req).then(function (hit) {
-        return hit || caches.match('./index.html');
+        return hit || caches.match(req.url.indexOf('/app/') !== -1 ? './app/index.html' : './index.html');
       });
     })
   );

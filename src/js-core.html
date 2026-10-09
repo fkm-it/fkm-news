@@ -617,7 +617,16 @@ var App = (function () {
       (state.settings.THEME_TOGGLE_ENABLED
         ? '<button class="dropdown-item" data-theme-toggle="1">' + icon('image', 16) +
           (effectiveMode() === 'dark' ? 'Mod terang' : 'Mod gelap') + '</button>' : '') +
-      roleSwitcherHtml();
+      roleSwitcherHtml() +
+      (window.FKMNEWS_WEB
+        ? '<button class="dropdown-item" data-logout="1">' + icon('logout', 16) +
+          'Log keluar</button>' : '');
+
+    var logoutItem = menu.querySelector('[data-logout]');
+    if (logoutItem) logoutItem.addEventListener('click', function () {
+      closeProfile();
+      window.FKMNEWS_WEB.logout();
+    });
 
     menu.querySelectorAll('[data-go]').forEach(function (b) {
       b.addEventListener('click', function () {

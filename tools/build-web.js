@@ -1,6 +1,7 @@
 /**
- * build-web.js — bina portal awam statik untuk GitHub Pages daripada
- * src/Public.html TANPA mengubah fail sumber (antara muka kekal sama).
+ * build-web.js — bina laman statik GitHub Pages TANPA mengubah fail sumber:
+ *   /      portal awam   (src/Public.html)
+ *   /app/  aplikasi staf (src/Index.html, log masuk OTP — F4)
  *
  *   node tools/build-web.js --api https://script.google.com/macros/s/<ID>/exec [--out dist]
  *
@@ -32,25 +33,8 @@ if (!/^https?:\/\//.test(api)) {
   process.exit(1);
 }
 
-let html = fs.readFileSync(path.join(SRC, 'Public.html'), 'utf8');
-
-/* 1. include() */
-html = html.replace(/<\?!=\s*include\(\s*['"]([\w-]+)['"]\s*\);?\s*\?>/g,
-  (m, f) => fs.readFileSync(path.join(SRC, f + '.html'), 'utf8'));
-
-/* 2. scriptlet boot */
-const qp = k => `(new URLSearchParams(location.search).get('${k}') || '')`;
-html = html.replace(/'<\?=\s*bootLang\s*\?>'/g, qp('lang'));
-html = html.replace(/'<\?=\s*bootId\s*\?>'/g, qp('id'));
-
-if (/<\?/.test(html)) {
-  const left = html.match(/<\?[\s\S]{0,60}/)[0];
-  console.error('✗ Scriptlet Apps Script yang belum ditangani: ' + left);
-  process.exit(1);
-}
-
-/* 3. kepala PWA + CSP */
 const apiOrigin = new URL(api).origin;
+const qp = k => `(new URLSearchParams(location.search).get('${k}') || '')`;
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
@@ -64,59 +48,93 @@ const csp = [
   "object-src 'none'"
 ].join('; ');
 
-const head = [
-  `<meta http-equiv="Content-Security-Policy" content="${csp}">`,
-  '<meta name="theme-color" content="#6B1839">',
-  '<meta name="description" content="Berita dan pengumuman Fakulti Kejuruteraan Mekanikal, UTM">',
-  '<link rel="manifest" href="manifest.webmanifest">',
-  '<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">',
-  '<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">',
-  '<meta name="apple-mobile-web-app-capable" content="yes">',
-  '<meta name="mobile-web-app-capable" content="yes">'
-].join('\n  ');
-if (!/<meta charset[^>]*>/i.test(html)) { console.error('✗ <meta charset> tidak dijumpai'); process.exit(1); }
-html = html.replace(/(<meta charset[^>]*>)/i, `$1\n  ${head}`);
+/**
+ * Bina satu halaman daripada templat HtmlService.
+ * @param {string} srcFile  fail dalam src/
+ * @param {Array<[RegExp,string]>} scriptlets  penggantian <?= … ?>
+ * @param {string} bridge   fail bridge dalam pwa/
+ * @param {string} rel      laluan relatif ke akar Pages ('' atau '../')
+ * @param {string} manifest nama fail manifest
+ */
+function buildPage(srcFile, scriptlets, bridge, rel, manifest, build) {
+  let html = fs.readFileSync(path.join(SRC, srcFile), 'utf8');
 
-/* 4. config + bridge sebelum skrip pertama */
-const build = crypto.createHash('sha256').update(html + api).digest('hex').slice(0, 10);
-const boot =
-  `<script>window.FKMNEWS_CONFIG = ${JSON.stringify({ apiUrl: api, build })};</script>\n` +
-  `<script src="bridge.js?v=${build}"></script>\n`;
-const firstScript = html.search(/<script\b/i);
-html = html.slice(0, firstScript) + boot + html.slice(firstScript);
+  html = html.replace(/<\?!=\s*include\(\s*['"]([\w-]+)['"]\s*\);?\s*\?>/g,
+    (m, f) => fs.readFileSync(path.join(SRC, f + '.html'), 'utf8'));
+  scriptlets.forEach(([re, val]) => { html = html.replace(re, val); });
 
-/* 5. daftar service worker */
-const sw =
-  `<script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () {` +
-  ` navigator.serviceWorker.register('sw.js').catch(function () {}); }); }</script>\n`;
-html = html.replace(/<\/body>/i, sw + '</body>');
+  if (/<\?/.test(html)) {
+    const left = html.match(/<\?[\s\S]{0,60}/)[0];
+    throw new Error(`${srcFile}: scriptlet Apps Script yang belum ditangani: ${left}`);
+  }
+  if (!/<meta charset[^>]*>/i.test(html)) throw new Error(`${srcFile}: <meta charset> tidak dijumpai`);
+
+  const head = [
+    `<meta http-equiv="Content-Security-Policy" content="${csp}">`,
+    '<meta name="theme-color" content="#6B1839">',
+    '<meta name="description" content="Berita dan pengumuman Fakulti Kejuruteraan Mekanikal, UTM">',
+    `<link rel="manifest" href="${manifest}">`,
+    `<link rel="icon" type="image/png" sizes="192x192" href="${rel}icons/icon-192.png">`,
+    `<link rel="apple-touch-icon" href="${rel}icons/apple-touch-icon.png">`,
+    '<meta name="apple-mobile-web-app-capable" content="yes">',
+    '<meta name="mobile-web-app-capable" content="yes">'
+  ].join('\n  ');
+  html = html.replace(/(<meta charset[^>]*>)/i, `$1\n  ${head}`);
+
+  const boot =
+    `<script>window.FKMNEWS_CONFIG = ${JSON.stringify({ apiUrl: api, build })};</script>\n` +
+    `<script src="${rel}${bridge}?v=${build}"></script>\n`;
+  const firstScript = html.search(/<script\b/i);
+  html = html.slice(0, firstScript) + boot + html.slice(firstScript);
+
+  const sw =
+    `<script>if ('serviceWorker' in navigator) { window.addEventListener('load', function () {` +
+    ` navigator.serviceWorker.register('${rel}sw.js', { scope: '${rel || './'}' }).catch(function () {}); }); }</script>\n`;
+  return html.replace(/<\/body>/i, sw + '</body>');
+}
+
+const srcHash = crypto.createHash('sha256');
+for (const f of fs.readdirSync(SRC).filter(f => f.endsWith('.html')).sort()) srcHash.update(fs.readFileSync(path.join(SRC, f)));
+for (const f of ['bridge.js', 'app-bridge.js', 'sw.js']) srcHash.update(fs.readFileSync(path.join(PWA, f)));
+const build = srcHash.update(api).digest('hex').slice(0, 10);
+
+/* Portal awam (/) — Public.html */
+const portalHtml = buildPage('Public.html', [
+  [/'<\?=\s*bootLang\s*\?>'/g, qp('lang')],
+  [/'<\?=\s*bootId\s*\?>'/g, qp('id')]
+], 'bridge.js', '', 'manifest.webmanifest', build);
+
+/* Aplikasi staf (/app/) — Index.html, log masuk OTP */
+const appHtml = buildPage('Index.html', [
+  [/'<\?=\s*bootPage\s*\?>'/g, `(${qp('page')} || (${qp('id')} ? 'portal-article' : 'dashboard'))`],
+  [/'<\?=\s*bootId\s*\?>'/g, qp('id')]
+], 'app-bridge.js', '../', 'manifest.webmanifest', build);
 
 /* tulis */
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-fs.writeFileSync(path.join(out, 'index.html'), html);
-fs.writeFileSync(path.join(out, '404.html'), html);
-fs.copyFileSync(path.join(PWA, 'bridge.js'), path.join(out, 'bridge.js'));
+fs.mkdirSync(path.join(out, 'app'), { recursive: true });
+fs.writeFileSync(path.join(out, 'index.html'), portalHtml);
+fs.writeFileSync(path.join(out, '404.html'), portalHtml);
+fs.writeFileSync(path.join(out, 'app', 'index.html'), appHtml);
+for (const f of ['bridge.js', 'app-bridge.js']) fs.copyFileSync(path.join(PWA, f), path.join(out, f));
 fs.writeFileSync(path.join(out, 'sw.js'),
   fs.readFileSync(path.join(PWA, 'sw.js'), 'utf8').replace('__BUILD__', build));
 for (const f of fs.readdirSync(path.join(PWA, 'icons'))) {
   fs.copyFileSync(path.join(PWA, 'icons', f), path.join(out, 'icons', f));
 }
-fs.writeFileSync(path.join(out, 'manifest.webmanifest'), JSON.stringify({
-  name: 'FKM News',
-  short_name: 'FKM News',
+const manifest = (name, start, scope, icons) => JSON.stringify({
+  name, short_name: name,
   description: 'Berita dan pengumuman Fakulti Kejuruteraan Mekanikal, UTM',
-  start_url: './',
-  scope: './',
-  display: 'standalone',
-  background_color: '#F7F5F8',
-  theme_color: '#6B1839',
-  lang: 'ms',
+  start_url: start, scope, display: 'standalone',
+  background_color: '#F7F5F8', theme_color: '#6B1839', lang: 'ms',
   icons: [
-    { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-    { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    { src: icons + 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+    { src: icons + 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
   ]
-}, null, 2));
+}, null, 2);
+fs.writeFileSync(path.join(out, 'manifest.webmanifest'), manifest('FKM News', './', './', ''));
+fs.writeFileSync(path.join(out, 'app', 'manifest.webmanifest'), manifest('FKM News Staf', './', './', '../'));
 fs.writeFileSync(path.join(out, '.nojekyll'), '');
 
-console.log(`✓ Portal dibina → ${path.relative(ROOT, out)}/ (build ${build}, API ${apiOrigin})`);
+console.log(`✓ Dibina → ${path.relative(ROOT, out)}/ (portal + app/, build ${build}, API ${apiOrigin})`);

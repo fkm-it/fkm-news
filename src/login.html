@@ -1,135 +1,136 @@
+<style>
+  /* Skrin log masuk / akses ditolak. Guna token tema sedia ada. */
+  .shell.is-login .sidebar,
+  .shell.is-login .sidebar-scrim,
+  .shell.is-login .topbar-actions,
+  .shell.is-login #menuBtn { display: none !important; }
+  .shell.is-login .main { margin-left: 0 !important; }
+  .auth-wrap { max-width: 420px; margin: clamp(16px, 6vh, 64px) auto; }
+  .auth-wrap h2 { margin: 0 0 6px; font-size: 1.15rem; }
+  .auth-wrap .lead { margin: 0 0 18px; color: var(--muted-color); font-size: .86rem; line-height: 1.6; }
+  .auth-wrap .code-input { font-size: 1.4rem; letter-spacing: .4em; text-align: center; }
+  .auth-msg { font-size: .8rem; margin: 0 0 14px; line-height: 1.5; }
+  .auth-msg.err { color: var(--danger-color); }
+  .auth-msg.ok { color: var(--success-color); }
+  .auth-links { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; font-size: .78rem; }
+  .auth-links button { background: none; border: 0; padding: 0; color: var(--primary-color); cursor: pointer; font: inherit; }
+</style>
 <script>
-/* dashboard.html — papan pemuka mengikut peranan.
-   Semua had (bilangan KPI, bulan trend, rekod terkini) datang dari server,
-   yang membacanya dari Global Settings. */
+/* login.html — skrin log masuk aplikasi staf.
 
-App.views['dashboard'] = {
+   Melalui URL /exec (sesi Google): hanya mesej "akses ditolak".
+   Melalui GitHub Pages (window.FKMNEWS_WEB): borang log masuk OTP e-mel.
+   Kod dihantar oleh WebAuth.gs; token sesi disimpan oleh bridge. */
 
-  title: function () {
-    return App.state.settings.LABEL_DASHBOARD || 'Papan Pemuka';
+App.views['login'] = {
+
+  renderDenied: function (container, message) {
+    var shell = document.getElementById('shell');
+    if (shell) shell.classList.add('is-login');
+    document.getElementById('pageTitle').textContent = 'Log masuk';
+
+    if (!window.FKMNEWS_WEB) {
+      container.innerHTML = '<div class="auth-wrap"><section class="card card-pad">' +
+        App.emptyState('Akses tidak dibenarkan',
+          message || 'Akaun anda tiada akses kepada sistem ini.') +
+        '</section></div>';
+      return;
+    }
+    this.renderEmail(container, window.FKMNEWS_WEB.lastError || '');
   },
 
-  render: function (container) {
+  renderEmail: function (container, notice) {
     var self = this;
-    return App.call('dashboard.get', { filters: {} }).then(function (data) {
-      container.innerHTML =
-        self.kpiSection(data) +
-        self.queueSection(data) +
-        '<div class="grid section" style="grid-template-columns:repeat(auto-fit,minmax(310px,1fr))">' +
-          self.trendSection(data) +
-          self.breakdownSection(data) +
-        '</div>' +
-        self.recentSection(data);
+    var saved = '';
+    try { saved = localStorage.getItem('FKMNEWS_LAST_EMAIL') || ''; } catch (e) { }
 
-      App.on(container, '[data-open-news]', 'click', function (e, target) {
-        App.navigate('news-detail', { newsId: target.dataset.openNews });
+    container.innerHTML = '<div class="auth-wrap"><section class="card card-pad">' +
+      '<h2>Log masuk staf</h2>' +
+      '<p class="lead">Masukkan e-mel UTM anda yang berdaftar. Kod 6 digit akan dihantar ke e-mel tersebut.</p>' +
+      (notice ? '<p class="auth-msg err">' + App.esc(notice) + '</p>' : '') +
+      '<form id="authEmailForm" novalidate>' +
+        '<div class="field"><label for="authEmail">E-mel</label>' +
+        '<input type="email" id="authEmail" autocomplete="username" inputmode="email" ' +
+        'placeholder="nama@utm.my" value="' + App.esc(saved) + '" required></div>' +
+        '<p class="auth-msg" id="authMsg" hidden></p>' +
+        '<button class="btn btn-block" id="authSend" type="submit">Hantar kod</button>' +
+      '</form></section></div>';
+
+    var form = container.querySelector('#authEmailForm');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = container.querySelector('#authEmail').value.trim();
+      var btn = container.querySelector('#authSend');
+      var msg = container.querySelector('#authMsg');
+      btn.disabled = true;
+      btn.textContent = 'Menghantar…';
+      window.FKMNEWS_WEB.request(email).then(function (res) {
+        try { localStorage.setItem('FKMNEWS_LAST_EMAIL', email); } catch (e2) { }
+        self.renderCode(container, email, res.message);
+      }).catch(function (err) {
+        msg.hidden = false;
+        msg.className = 'auth-msg err';
+        msg.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Hantar kod';
       });
     });
+    setTimeout(function () { container.querySelector('#authEmail').focus(); }, 50);
   },
 
-  kpiSection: function (data) {
-    if (!data.kpis.length) return '';
-    var cards = data.kpis.map(function (k) {
-      return '<div class="kpi" style="--kpi-color:' + App.esc(k.color) + '">' +
-        '<div class="kpi-value mono">' + k.value + '</div>' +
-        '<div class="kpi-label">' + App.esc(k.label) + '</div>' +
-        (k.hint ? '<div class="kpi-hint">' + App.esc(k.hint) + '</div>' : '') +
-        '</div>';
-    }).join('');
-    return '<div class="kpis section">' + cards + '</div>';
-  },
+  renderCode: function (container, email, info) {
+    var self = this;
+    container.innerHTML = '<div class="auth-wrap"><section class="card card-pad">' +
+      '<h2>Masukkan kod</h2>' +
+      '<p class="lead">' + App.esc(info) + '<br><strong>' + App.esc(email) + '</strong></p>' +
+      '<form id="authCodeForm" novalidate>' +
+        '<div class="field"><label for="authCode">Kod 6 digit</label>' +
+        '<input type="text" id="authCode" class="code-input" inputmode="numeric" ' +
+        'autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div>' +
+        '<p class="auth-msg" id="authMsg" hidden></p>' +
+        '<button class="btn btn-block" id="authVerify" type="submit">Log masuk</button>' +
+      '</form>' +
+      '<div class="auth-links"><button type="button" id="authBack">Tukar e-mel</button>' +
+      '<button type="button" id="authResend">Hantar semula kod</button></div>' +
+      '</section></div>';
 
-  queueSection: function (data) {
-    var heading = data.role === 'AUTHOR' ? 'Perlu tindakan anda' : 'Giliran semakan anda';
+    var input = container.querySelector('#authCode');
+    var msg = container.querySelector('#authMsg');
+    var btn = container.querySelector('#authVerify');
 
-    if (!data.actionQueue.length) {
-      return '<section class="card section">' +
-        '<div class="card-head"><h2>' + heading + '</h2></div>' +
-        App.emptyState('Tiada tindakan tertunggak',
-          data.role === 'AUTHOR'
-            ? 'Semua berita anda sedang bergerak dalam aliran kerja.'
-            : 'Tiada berita menunggu keputusan anda buat masa ini.') +
-        '</section>';
-    }
-
-    var rows = data.actionQueue.map(function (n) {
-      return '<tr class="clickable" data-open-news="' + App.esc(n.newsId) + '">' +
-        '<td><div class="cell-title">' + App.esc(n.title) + '</div>' +
-        '<div class="cell-sub">' + App.esc(n.newsId) + ' · ' + App.esc(n.categoryName) + '</div></td>' +
-        '<td>' + App.esc(n.authorName) + '</td>' +
-        '<td>' + App.statusPill(n.statusLabel, n.statusColor) + '</td>' +
-        '<td class="cell-sub">' + App.esc(n.updatedAt) + '</td></tr>';
-    }).join('');
-
-    return '<section class="card section">' +
-      '<div class="card-head"><h2>' + heading + '</h2>' +
-      '<span class="pill" style="--pill-color:var(--accent-color)">' +
-      data.actionQueue.length + '</span></div>' +
-      '<div class="table-wrap"><table><thead><tr>' +
-      '<th>Tajuk</th><th>Penulis</th><th>Status</th><th>Kemas kini</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
-  },
-
-  trendSection: function (data) {
-    var max = data.trend.reduce(function (m, b) {
-      return Math.max(m, b.submitted, b.published);
-    }, 1);
-
-    var cols = data.trend.map(function (b) {
-      var hs = Math.round((b.submitted / max) * 130);
-      var hp = Math.round((b.published / max) * 130);
-      return '<div class="trend-col"><div class="trend-bars">' +
-        '<div class="trend-bar" style="height:' + hs + 'px;background:var(--secondary-color)" ' +
-        'title="Dihantar: ' + b.submitted + '"></div>' +
-        '<div class="trend-bar" style="height:' + hp + 'px;background:var(--accent-color)" ' +
-        'title="Diterbitkan: ' + b.published + '"></div>' +
-        '</div><div class="trend-label">' + App.esc(b.label) + '</div></div>';
-    }).join('');
-
-    return '<section class="card"><div class="card-head"><h2>Trend bulanan</h2></div>' +
-      '<div class="card-pad"><div class="trend">' + cols + '</div>' +
-      '<div class="legend" style="margin-top:12px">' +
-      '<span><i class="dot" style="background:var(--secondary-color)"></i>Dihantar</span>' +
-      '<span><i class="dot" style="background:var(--accent-color)"></i>Diterbitkan</span>' +
-      '</div></div></section>';
-  },
-
-  breakdownSection: function (data) {
-    if (!data.statusBreakdown.length) {
-      return '<section class="card"><div class="card-head"><h2>Taburan status</h2></div>' +
-        App.emptyState('Belum ada data', 'Berita pertama akan dipaparkan di sini.') + '</section>';
-    }
-
-    var total = data.statusBreakdown.reduce(function (s, b) { return s + b.count; }, 0);
-    var rows = data.statusBreakdown.map(function (b) {
-      var pct = Math.round((b.count / total) * 100);
-      return '<div class="breakdown-row">' +
-        '<span class="small">' + App.esc(b.label) + '</span>' +
-        '<div class="breakdown-track"><div class="breakdown-fill" style="width:' + pct +
-        '%;background:' + App.esc(b.color) + '"></div></div>' +
-        '<span class="small mono" style="text-align:right">' + b.count + '</span></div>';
-    }).join('');
-
-    return '<section class="card"><div class="card-head"><h2>Taburan status</h2></div>' +
-      '<div class="card-pad"><div class="breakdown">' + rows + '</div></div></section>';
-  },
-
-  recentSection: function (data) {
-    if (!data.recent.length) return '';
-    var rows = data.recent.map(function (n) {
-      return '<tr class="clickable" data-open-news="' + App.esc(n.newsId) + '">' +
-        '<td><div class="cell-title">' + App.esc(n.title) + '</div>' +
-        '<div class="cell-sub">' + App.esc(n.authorName) + '</div></td>' +
-        '<td>' + App.statusPill(n.statusLabel, n.statusColor) + '</td>' +
-        '<td class="cell-sub">' + App.esc(n.updatedAt) + '</td></tr>';
-    }).join('');
-
-    return '<section class="card section"><div class="card-head"><h2>Aktiviti terkini</h2>' +
-      '<span class="spacer"></span><span class="small muted">Dijana ' +
-      App.esc(data.generatedAt) + '</span></div>' +
-      '<div class="table-wrap"><table><thead><tr>' +
-      '<th>Tajuk</th><th>Status</th><th>Kemas kini</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    container.querySelector('#authCodeForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      btn.disabled = true;
+      btn.textContent = 'Mengesahkan…';
+      window.FKMNEWS_WEB.verify(email, input.value).then(function () {
+        location.reload();
+      }).catch(function (err) {
+        msg.hidden = false;
+        msg.className = 'auth-msg err';
+        msg.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Log masuk';
+        input.select();
+      });
+    });
+    input.addEventListener('input', function () {
+      input.value = input.value.replace(/\D/g, '').substring(0, 6);
+    });
+    container.querySelector('#authBack').addEventListener('click', function () {
+      self.renderEmail(container, '');
+    });
+    container.querySelector('#authResend').addEventListener('click', function () {
+      window.FKMNEWS_WEB.request(email).then(function (res) {
+        msg.hidden = false;
+        msg.className = 'auth-msg ok';
+        msg.textContent = res.message;
+      }).catch(function (err) {
+        msg.hidden = false;
+        msg.className = 'auth-msg err';
+        msg.textContent = err.message;
+      });
+    });
+    setTimeout(function () { input.focus(); }, 50);
   }
 };
 </script>

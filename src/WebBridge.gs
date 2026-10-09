@@ -8,11 +8,12 @@
  * /exec dengan badan JSON: { fn: 'publicApi', args: [action, payload] }.
  *
  * KESELAMATAN
- * Hanya fungsi dalam ALLOWED_ di bawah boleh dipanggil. Kedua-duanya ialah
- * laluan awam baca-sahaja yang sama seperti portal Apps Script, dan tidak
- * memerlukan identiti. api() (aplikasi staf) SENGAJA tiada di sini: ia
- * bergantung pada sesi Google, yang tidak wujud dalam permintaan fetch
- * dari domain lain. Laluan staf akan ditambah dalam F4 dengan sesi OTP.
+ * Hanya fungsi dalam WEB_BRIDGE_ALLOWED_ boleh dipanggil:
+ *  - publicApi / publicSidebar: laluan awam baca-sahaja (portal)
+ *  - authRequest / authVerify / authLogout: log masuk OTP (WebAuth.gs)
+ *  - apiWeb: api() aplikasi staf, dengan token sesi OTP sebagai argumen
+ *    pertama. Tanpa token sah → UNAUTHENTICATED. api() sendiri (sesi
+ *    Google) SENGAJA tiada di sini.
  * ============================================================================
  */
 
@@ -20,7 +21,8 @@ function doPost(e) {
   var out;
   try {
     var raw = (e && e.postData && e.postData.contents) || '';
-    if (raw.length > 100000) throw new Error('too large');
+    // Muat naik gambar (base64) melalui apiWeb boleh mencecah ~14 MB.
+    if (raw.length > 25 * 1024 * 1024) throw new Error('too large');
     var body = JSON.parse(raw || '{}');
     var fn = String(body.fn || '');
     var args = Array.isArray(body.args) ? body.args : [];
@@ -43,6 +45,20 @@ function doPost(e) {
 function WEB_BRIDGE_ALLOWED_() {
   return {
     publicApi: function (a) { return publicApi(String(a[0] || ''), a[1] || {}); },
-    publicSidebar: function (a) { return publicSidebar(a[0]); }
+    publicSidebar: function (a) { return publicSidebar(a[0]); },
+
+    /* Aplikasi staf (F4): log masuk OTP + api() bertoken */
+    authRequest: function (a) {
+      return webAuthCall_(function () { return WebAuth.requestCode(a[0]); });
+    },
+    authVerify: function (a) {
+      return webAuthCall_(function () { return WebAuth.verifyCode(a[0], a[1]); });
+    },
+    authLogout: function (a) {
+      return webAuthCall_(function () { return WebAuth.logout(a[0]); });
+    },
+    apiWeb: function (a) {
+      return apiWeb_(String(a[0] || ''), String(a[1] || ''), a[2] || {});
+    }
   };
 }

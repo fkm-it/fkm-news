@@ -1,5 +1,18 @@
 # Changelog — FKM News
 
+## 1.3.0 — 2026-10-09 · F4 Aplikasi staf di GitHub Pages (log masuk OTP e-mel)
+
+Aplikasi staf kini juga boleh dibuka di **`https://fkm-it.github.io/fkm-news/app/`**. Log masuk menggunakan kod 6 digit ke e-mel yang berdaftar dalam sheet USERS, tanpa kata laluan. Semua skrin sedia ada kekal sama. URL `/exec` (log masuk Google) masih berfungsi sebagai sandaran.
+
+- `WebAuth.gs`: minta kod (jawapan seragam, had 3/15 min setiap e-mel dan 40/15 min keseluruhan), sahkan kod (5 cubaan, sekali guna, tamat 10 min), token sesi 384-bit (hanya hash disimpan, berpepper), tamat bila tidak aktif (`SESSION_TIMEOUT_MINUTES`) atau mutlak 8 jam, log keluar. Status dan domain pengguna disemak pada setiap permintaan.
+- `apiAs_()`: `api()` dipecah supaya laluan web dan laluan Google berkongsi penghala dan RBAC yang SAMA.
+- `UserPrefs.gs`: tema, bahasa dan peranan ujian disimpan ikut UserID bagi pengguna web (tidak bocor antara pengguna).
+- `WebBridge.gs`: `authRequest`, `authVerify`, `authLogout`, `apiWeb`; had badan 25 MB untuk muat naik gambar.
+- `login.html`: skrin log masuk OTP (web) / akses ditolak (/exec). Ini juga membetulkan pepijat lama, iaitu `views['login']` tidak wujud sehingga skrin akses ditolak menjadi kosong.
+- Menu profil: **Log keluar** (web sahaja).
+- `pwa/app-bridge.js`, binaan `/app/`, manifest "FKM News Staf".
+- Ujian: 16 ujian baharu (`tests/webauth.test.js`), E2E log masuk → papan pemuka → senarai → log keluar pada 360px dan desktop.
+
 ## 1.2.0 — 2026-10-09 · F3 Portal awam di GitHub Pages + PWA
 
 Portal awam kini juga dihidangkan dari **GitHub Pages** (`https://fkm-it.github.io/fkm-news/`), tanpa banner Apps Script dan boleh dipasang sebagai app telefon. `Public.html` tidak diubah; antara muka sama. Aplikasi staf kekal di URL `/exec`.

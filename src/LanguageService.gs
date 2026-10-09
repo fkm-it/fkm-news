@@ -42,7 +42,7 @@ var LanguageService = (function () {
    */
   function getLanguage() {
     try {
-      var saved = PropertiesService.getUserProperties().getProperty('FKMNEWS_LANG');
+      var saved = UserPrefs.get('FKMNEWS_LANG');
       if (saved === LANGS.BM || saved === LANGS.EN) return saved;
     } catch (e) { }
     return DEFAULT_LANG;
@@ -51,7 +51,7 @@ var LanguageService = (function () {
   function setLanguage(lang) {
     var v = normalizeLang_(lang);
     try {
-      PropertiesService.getUserProperties().setProperty('FKMNEWS_LANG', v);
+      UserPrefs.set('FKMNEWS_LANG', v);
     } catch (e) { }
     return { lang: v, htmlLang: HTML_LANG[v] };
   }

@@ -62,8 +62,17 @@ http.createServer((req, res) => {
     });
     return;
   }
+  // DEV SAHAJA: kod OTP terakhir bagi e-mel (tiada dalam binaan sebenar)
+  if (req.method === 'GET' && req.url.startsWith('/__lastcode')) {
+    const to = new URL(req.url, 'http://x').searchParams.get('to');
+    const m = gas.state.mails.filter(x => x.to === to).pop();
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end(m ? (m.subject.match(/(\d{6})$/) || [])[1] || '' : '');
+    return;
+  }
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p.endsWith('/')) p += 'index.html';
+  else if (!path.extname(p)) p += '/index.html';
   const file = path.join(DIR, path.normalize(p).replace(/^(\.\.[\/\\])+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file)) { res.writeHead(404); res.end('404'); return; }
   res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });

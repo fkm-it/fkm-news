@@ -70,6 +70,22 @@ var Auth = (function () {
       user = SheetDB.findOneBy(CONFIG.SHEETS.USERS, 'Email', email);
     }
 
+    return fromRecord_(user, email);
+  }
+
+  /**
+   * Pengguna berdaftar bagi e-mel (tanpa auto-daftar). Digunakan oleh sesi
+   * OTP aplikasi web. Status dan domain disemak pada SETIAP permintaan,
+   * jadi akaun yang dinyahaktifkan terputus serta-merta.
+   */
+  function userForEmail(email) {
+    email = String(email || '').trim().toLowerCase();
+    if (!email) return null;
+    var user = SheetDB.findOneBy(CONFIG.SHEETS.USERS, 'Email', email);
+    return fromRecord_(user, email);
+  }
+
+  function fromRecord_(user, email) {
     if (!user) return null;
     if (String(user.Status).toUpperCase() !== USER_STATUS.ACTIVE) return null;
     if (!isDomainAllowed(email)) return null;
@@ -110,7 +126,7 @@ var Auth = (function () {
 
     var acting = '';
     try {
-      acting = PropertiesService.getUserProperties().getProperty('FKMNEWS_ACT_AS') || '';
+      acting = UserPrefs.get('FKMNEWS_ACT_AS');
     } catch (e) { return realRole; }
 
     if ([ROLES.AUTHOR, ROLES.EDITOR, ROLES.ADMIN].indexOf(acting) === -1) return realRole;
@@ -129,7 +145,7 @@ var Auth = (function () {
     if ([ROLES.AUTHOR, ROLES.EDITOR, ROLES.ADMIN].indexOf(String(role)) === -1) {
       throw Utils.appError('VALIDATION', 'Peranan tidak sah.');
     }
-    PropertiesService.getUserProperties().setProperty('FKMNEWS_ACT_AS', String(role));
+    UserPrefs.set('FKMNEWS_ACT_AS', String(role));
     return { role: String(role) };
   }
 
@@ -157,6 +173,7 @@ var Auth = (function () {
     getScriptOwnerEmail: getScriptOwnerEmail,
     isDomainAllowed: isDomainAllowed,
     getCurrentUser: getCurrentUser,
+    userForEmail: userForEmail,
     requireUser: requireUser,
     touchLogin: touchLogin
   };

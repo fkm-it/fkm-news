@@ -115,12 +115,22 @@ function include(filename) {
  * @returns {{ok:boolean, data:*}|{ok:false, error:{code,message}}}
  */
 function api(action, payload) {
-  payload = payload || {};
-
   try {
-    // 1. AUTHENTICATE
+    // 1. AUTHENTICATE (sesi Google, URL /exec)
     var user = Auth.requireUser();
+    return apiAs_(user, action, payload);
+  } catch (err) {
+    return Security.safeError(err);
+  }
+}
 
+/**
+ * Laksanakan satu tindakan API bagi pengguna yang SUDAH disahkan.
+ * Dikongsi oleh api() (sesi Google) dan apiWeb_() (sesi OTP, WebAuth.gs).
+ */
+function apiAs_(user, action, payload) {
+  payload = payload || {};
+  try {
     // 2. HAD KADAR — lindungi daripada gelung tak terkawal dan penyalahgunaan
     enforceRateLimit_(user, action);
 
@@ -388,7 +398,7 @@ function permissionSnapshot_(user) {
  */
 function getThemeMode_() {
   try {
-    var saved = PropertiesService.getUserProperties().getProperty('FKMNEWS_THEME');
+    var saved = UserPrefs.get('FKMNEWS_THEME');
     if (saved === 'light' || saved === 'dark' || saved === 'system') return saved;
   } catch (e) { }
   return GlobalSettings.get('DEFAULT_THEME_MODE');
@@ -411,7 +421,7 @@ function setThemeMode_(mode) {
   if (allowed.indexOf(String(mode)) === -1) {
     throw Utils.appError('VALIDATION', 'Mod tema tidak sah.');
   }
-  PropertiesService.getUserProperties().setProperty('FKMNEWS_THEME', String(mode));
+  UserPrefs.set('FKMNEWS_THEME', String(mode));
   return { mode: String(mode) };
 }
 
