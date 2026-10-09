@@ -1,5 +1,9 @@
 # Changelog — FKM News
 
+## 1.8.1 — 2026-10-09 · Butang Dengar dimatikan
+
+- Butang **Dengar** dan **Dengar ringkasan** disembunyikan atas keputusan Za: suara pelayar terlalu robotik dan membaca keseluruhan berita. Kod dikekalkan (`LISTEN_ENABLED = false` dalam `public-extras.html`). Ringkasan 30 saat, Kod QR dan Kad kongsi tidak berubah.
+
 ## 1.8.0 — 2026-10-09 · F10 Kongsi & buletin
 
 - **Kad kongsi 1080×1080** (portal, butang "Kad kongsi" di halaman berita): imej PNG berjenama FKM (marun/emas, kategori, tajuk, tarikh) dilukis dalam pelayar. Muat turun, atau "Kongsi…" terus ke aplikasi telefon (Web Share API). Gambar berita digunakan jika pelayan gambar membenarkannya; jika tidak, kad tipografi.

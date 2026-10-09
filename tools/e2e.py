@@ -73,7 +73,7 @@ with sync_playwright() as p:
 
         # ---------------------------------------------- F9: alat pembaca
         page.wait_for_selector('.read-tools', timeout=5000)
-        check(page.locator('[data-rt="listen"]').count() == 1, 'F9: butang Dengar dipaparkan')
+        check(page.locator('[data-rt="listen"]').count() == 0, 'F9: butang Dengar dimatikan')
         check(page.locator('[data-rt="qr"]').count() == 1, 'F9: butang Kod QR dipaparkan')
         if page.locator('[data-rt="summary"]').count():
             page.click('[data-rt="summary"]')
@@ -81,19 +81,12 @@ with sync_playwright() as p:
             check(2 <= n <= 5, f'F9: ringkasan 30 saat ({n} perkara)')
             words = page.evaluate("() => document.querySelector('.kp-box ul').innerText.split(/\\s+/).length")
             check(words <= 115, f'F9: ringkasan pendek ({words} perkataan)')
+            check(page.locator('[data-kp-listen]').count() == 0, 'F9: Dengar ringkasan dimatikan')
             page.screenshot(path=f'{SHOTS}/{name}-2b-ringkasan.png', full_page=False)
             page.click('[data-rt="summary"]')
             check(page.locator('.kp-box').count() == 0, 'F9: ringkasan boleh ditutup')
         else:
             check(False, 'F9: butang ringkasan 30 saat dipaparkan')
-        page.click('[data-rt="listen"]')
-        page.wait_for_timeout(300)
-        check(page.get_attribute('[data-rt="listen"]', 'aria-pressed') == 'true', 'F9: Dengar bermula')
-        spoken = page.evaluate("() => window.__spoken")
-        check(len(spoken) >= 2 and all(len(x['text']) <= 220 for x in spoken), f'F9: teks dibaca dalam {len(spoken)} cebisan ≤220 aksara')
-        check(spoken and spoken[0]['lang'] == 'id-ID', 'F9: suara BM jatuh balik ke id-ID')
-        page.click('[data-rt="stop"]')
-        check(page.get_attribute('[data-rt="listen"]', 'aria-pressed') == 'false', 'F9: Henti berfungsi')
         page.click('[data-rt="qr"]')
         page.wait_for_selector('#qrDialog[open]', timeout=3000)
         src = page.evaluate("() => (document.querySelector('#qrDialog img') || {}).src || 'gagal-dimuat'")

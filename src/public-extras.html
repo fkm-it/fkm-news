@@ -1,7 +1,7 @@
 <!--
   public-extras.html — alat pembaca pada halaman berita (F9).
 
-    🔊 Dengar           Web Speech API pelayar (percuma, tiada pelayan).
+    🔊 Dengar           DIMATIKAN (LISTEN_ENABLED = false). Web Speech API pelayar.
     ⚡ Ringkasan 30 saat ayat utama setiap perenggan, dipetik automatik
                         daripada kandungan (gaya FKM: satu idea setiap
                         perenggan), maksimum ~75 patah perkataan.
@@ -229,8 +229,13 @@ var PubExtras = (function () {
 
   var tts = { playing: false, paused: false, mode: '' };
 
+  /* Butang Dengar DIMATIKAN (keputusan Za, 9 Okt 2026): suara pelayar
+     terlalu robotik dan membaca keseluruhan berita. Kod dikekalkan; tukar
+     kepada true untuk menghidupkan semula. */
+  var LISTEN_ENABLED = false;
+
   function ttsSupported() {
-    return typeof window.speechSynthesis !== 'undefined' &&
+    return LISTEN_ENABLED && typeof window.speechSynthesis !== 'undefined' &&
       typeof window.SpeechSynthesisUtterance !== 'undefined';
   }
 
