@@ -43,6 +43,12 @@ jobs:
           if [ -z "$CLASPRC_JSON" ]; then echo "::error::Secret CLASPRC_JSON belum ditetapkan (lihat DEPLOYMENT.md)"; exit 1; fi
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
+          # Diagnostik: struktur sahaja (nama kunci), TIADA nilai dipaparkan
+          node -e '
+            const fs=require("fs");const raw=fs.readFileSync(process.env.HOME+"/.clasprc.json","utf8");
+            let j; try{j=JSON.parse(raw)}catch(e){console.log("::error::CLASPRC_JSON bukan JSON sah (panjang "+raw.length+", mula: "+JSON.stringify(raw.slice(0,1))+")");process.exit(1)}
+            const shape=(o,d)=>o&&typeof o==="object"&&d<3?Object.fromEntries(Object.keys(o).map(k=>[k,shape(o[k],d+1)])):typeof o;
+            console.log("::notice::Struktur CLASPRC_JSON: "+JSON.stringify(shape(j,0)));'
           printf '{"scriptId":"%s","rootDir":"src"}\n' "${{ vars.SCRIPT_ID }}" > .clasp.json
           npm install --no-save --no-audit --no-fund @google/clasp@3
       # Log Actions tidak boleh dibaca melalui API tanpa log masuk, jadi
