@@ -19,7 +19,7 @@
 | F3 Portal Pages + PWA (v1.2.0) | ✅ live | `Public.html` tidak diubah; `doPost` senarai putih; E2E 360px |
 | F4 App staf Pages + OTP (v1.3.0) | ✅ deploy, menunggu semakan Za | `WebAuth.gs`, `apiAs_`, `UserPrefs.gs`, skrin log masuk |
 | F4.1 Penyerahan app staf (v1.3.1) | ✅ deploy | E-mel alu-aluan semasa Admin daftar pengguna, `STAFF_APP_URL` untuk pautan e-mel, `noindex` pada /app/ |
-| F5 Portal Statik Pantas (v1.4.0) | ✅ deploy; perlu token GitHub (DEPLOYMENT.md §1.3) | `StaticSite.gs` tolak `data/` bila terbit; `/b/<slug>/` OG + sitemap; bridge statik dahulu |
+| F5 Portal Statik Pantas (v1.4.0) | ✅ live (token ditetapkan, rebuild pertama 9 Okt 15:18: 8 berita) | `StaticSite.gs` tolak `data/` bila terbit; `/b/<slug>/` OG + sitemap; bridge statik dahulu |
 | F6 WordPress REST push | ⏳ | CPT `fkm_news` di mech.utm.my/fkmnews |
 | F7 Peringatan tertunggak | ⏳ | Berita tersangkut dalam semakan > N hari → peringatan |
 | F8 AI staf (Claude API) | ⏳ | Pembantu Penulis, semakan awal Admin, terjemahan BI, alt-text, kapsyen sosial; skill `gaya-berita-fkm` sebagai prompt |
@@ -40,7 +40,8 @@
 - Skill dicadangkan: `naik-taraf-sistem-gas-pwa` (baharu), `bina-sistem-gas-pwa` (kemas kini), `gaya-berita-fkm` (baharu)
 
 ## Perkara tertunggak / perlu disemak
-- F5: cipta token GitHub → Script Property `FKMNEWS_GITHUB_TOKEN` → jalankan `staticSiteRebuild` → tetapkan `PUBLIC_SITE_URL` = https://fkm-it.github.io/fkm-news/b
+- F5: tetapkan `PUBLIC_SITE_URL` = https://fkm-it.github.io/fkm-news/b dan `PUBLIC_PORTAL_URL` = https://fkm-it.github.io/fkm-news/ (pautan kongsi masih /exec)
+- Token GitHub portal statik tamat tempoh mengikut tarikh yang dipilih Za — perbaharui dan kemas kini Script Property `FKMNEWS_GITHUB_TOKEN`
 - Semakan live oleh Za: log masuk OTP di `/app/`, muat naik gambar, gambar draf dipaparkan, e-mel alu-aluan
 - Tetapkan `PUBLIC_PORTAL_URL` = https://fkm-it.github.io/fkm-news/ (pautan kongsi ke portal baharu)
 - Gambar draf (Drive "domain with link") mungkin tidak dipaparkan di github.io untuk pelayar tanpa log masuk akaun UTM; jika berlaku, hidangkan melalui backend
