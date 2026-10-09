@@ -40,11 +40,12 @@
 - Skill dicadangkan: `naik-taraf-sistem-gas-pwa` (baharu), `bina-sistem-gas-pwa` (kemas kini), `gaya-berita-fkm` (baharu)
 
 ## Perkara tertunggak / perlu disemak
-- F5: tetapkan `PUBLIC_SITE_URL` = https://fkm-it.github.io/fkm-news/b dan `PUBLIC_PORTAL_URL` = https://fkm-it.github.io/fkm-news/ (pautan kongsi masih /exec)
+- F5: `PUBLIC_SITE_URL` sudah ditetapkan (pautan kongsi kini /b/<slug>/). Berita bertajuk huruf tebal Unicode tiada slug → pautan `?id=`
 - Token GitHub portal statik tamat tempoh mengikut tarikh yang dipilih Za — perbaharui dan kemas kini Script Property `FKMNEWS_GITHUB_TOKEN`
 - Semakan live oleh Za: log masuk OTP di `/app/`, muat naik gambar, gambar draf dipaparkan, e-mel alu-aluan
 - Tetapkan `PUBLIC_PORTAL_URL` = https://fkm-it.github.io/fkm-news/ (pautan kongsi ke portal baharu)
 - Gambar draf (Drive "domain with link") mungkin tidak dipaparkan di github.io untuk pelayar tanpa log masuk akaun UTM; jika berlaku, hidangkan melalui backend
 - Projek Apps Script `1O6hRQ8ob…` (tercipta di PC Za) bukan FKM NEWS; semak dan padam jika tidak diperlukan
+- F9: uji butang Dengar pada telefon Za (Android/iPhone). Jika tiada suara Melayu, suara Indonesia digunakan; jika tiada kedua-duanya, suara lalai
 - Jangan sunting kod dalam editor Apps Script; semua perubahan melalui repo
 - Jangan padam Script Property `FKMNEWS_AUTH_PEPPER` (semua sesi web akan tamat)
