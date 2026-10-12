@@ -75,8 +75,10 @@ def push_state(page):
     return page.evaluate("async () => (await (await fetch('/__push')).json())")
 
 with sync_playwright() as p:
-    exe = '/opt/pw-browsers/chromium' if os.path.exists('/opt/pw-browsers/chromium') and os.path.isfile('/opt/pw-browsers/chromium') else None
-    browser = p.chromium.launch(executable_path=exe) if exe else p.chromium.launch()
+    exe = os.environ.get('E2E_CHROME') or '/opt/pw-browsers/chromium' if os.path.exists('/opt/pw-browsers/chromium') and os.path.isfile('/opt/pw-browsers/chromium') else None
+    # channel='chromium' = Chromium penuh (mod headless baharu). chrome-headless-shell
+    # lalai Playwright tidak memberi kebenaran notifikasi, jadi ujian push F11 gagal.
+    browser = p.chromium.launch(executable_path=exe) if exe else p.chromium.launch(channel='chromium')
     for name, vp in (('telefon-360', {'width': 360, 'height': 780}), ('desktop', {'width': 1280, 'height': 860})):
         print(f'[{name}]')
         ctx = browser.new_context(viewport=vp, device_scale_factor=2 if name.startswith('telefon') else 1)
