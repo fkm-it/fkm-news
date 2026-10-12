@@ -1,5 +1,16 @@
 # Changelog — FKM News
 
+## 1.11.1 — 2026-10-12 · Poster tidak lagi terpotong
+
+Maklum balas Za: poster (contoh "Trash to Cash & Oil-to-Money", hampir segi empat) terpotong di halaman berita.
+
+- **Paparan seragam di portal ("smart fit")**: bingkai kekal sama (kad berita, hero, gambar utama), tetapi gambar yang bentuknya jauh berbeza — poster, potret, panorama — dipaparkan **penuh** di tengah atas latar kabur gambar itu sendiri. Foto landskap biasa kekal penuh bingkai. Berfungsi untuk **semua gambar, termasuk yang dimuat naik sebelum ini**.
+- Halaman berita: gambar utama dipaparkan **penuh** (tinggi ikut gambar, maksimum 80% skrin), tidak lagi dipotong pada 420px.
+- Hero laman utama: poster dipaparkan penuh di sebelah kanan atas latar kabur (desktop); telefon memaparkan latar kabur.
+- Muat naik: **bentuk asal dikekalkan** secara lalai (`IMAGE_UPLOAD_SHAPE = original`) — fail hanya dikecilkan (sisi terpanjang 2000px), arah telefon dibetulkan, JPEG. Mod 16:9 (`auto`/`cover`/`contain`) masih boleh dipilih. Menggantikan `IMAGE_NORMALIZE_MODE`.
+- App staf: pratonton gambar utama tidak dipotong.
+- E2E: poster segi empat dikesan & dipaparkan penuh; foto landskap tidak diubah.
+
 ## 1.11.0 — 2026-10-12 · Gambar berita diseragamkan 16:9
 
 - Setiap gambar berita yang dimuat naik (borang berita, app staf) ditukar dalam pelayar kepada **JPEG 1600×900 (16:9)**, sama dengan paparan portal (hero, kad berita, gambar utama, kad kongsi), sebelum dihantar ke Drive.

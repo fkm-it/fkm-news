@@ -1,6 +1,6 @@
 # Status naik taraf FKM News (kaedah D'Ruang)
 
-**Dikemas kini:** 12 Okt 2026 · Versi live: **v1.11.0**
+**Dikemas kini:** 12 Okt 2026 · Versi live: **v1.11.1**
 **Repo:** github.com/fkm-it/fkm-news (awam) · CI/CD: setiap push ke `main` → ujian → `clasp push` → kemas kini deployment → GitHub Pages
 
 ## URL
@@ -27,7 +27,7 @@
 | F11 App telefon & push (v1.9.0) | ✅ live 12 Okt; Firebase disediakan Za 12 Okt | Pasang app (portal & staf); push staf (semua notifikasi aliran kerja) & pembaca (berita baharu, opt-in) melalui FCM; `PushService.gs`, `pwa/push.js`; DEPLOYMENT §1.6 |
 | F10 Kongsi & buletin (v1.8.0) | ✅ deploy | Kad kongsi 1080×1080 (pelayar), `/arkib/` garis masa, buletin bulanan e-mel+PDF (`BulletinService.gs`, kad Papan Pemuka; automatik mati secara lalai, DEPLOYMENT §1.5) |
 | Sunting berita terbit (v1.10.0) | ✅ deploy | Admin & Editor sunting berita Diterbitkan + tukar gambar utama; slug kekal, versi lama disimpan, portal dikemas kini; `EDIT_PUBLISHED_ENABLED` |
-| Gambar seragam 16:9 (v1.11.0) | ✅ deploy | `image-normalize.html`: muat naik → JPEG 1600×900; auto potong / penuh atas latar kabur; `IMAGE_NORMALIZE_*` |
+| Gambar seragam (v1.11.0 → v1.11.1) | ✅ deploy | Paparan "smart fit" di portal: poster/potret penuh atas latar kabur, tiada potongan (semua gambar lama & baharu). Muat naik kekal bentuk asal (`IMAGE_UPLOAD_SHAPE=original`), dikecilkan 2000px |
 
 ## Keputusan Za
 - Kod dan interface sedia ada dikekalkan (tidak dipindah ke enjin modul JSON templat)

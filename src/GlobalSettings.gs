@@ -124,8 +124,8 @@ var GlobalSettings = (function () {
     MAX_FILE_SIZE_MB:   { group: 'Upload', type: 'number', isPublic: true, def: 10, desc: 'Saiz maksimum satu fail (MB)' },
     ALLOWED_EXTENSIONS: { group: 'Upload', type: 'csv', isPublic: true, def: 'jpg,jpeg,png,webp,gif,pdf,docx,xlsx,pptx', desc: 'Sambungan fail dibenarkan' },
     ALLOWED_IMAGE_EXTENSIONS: { group: 'Upload', type: 'csv', isPublic: true, def: 'jpg,jpeg,png,webp', desc: 'Sambungan imej dibenarkan' },
-    IMAGE_NORMALIZE_ENABLED: { group: 'Upload', type: 'boolean', isPublic: true, def: true, desc: 'Seragamkan gambar berita kepada 16:9 (1600×900) semasa muat naik, mengikut paparan portal' },
-    IMAGE_NORMALIZE_MODE: { group: 'Upload', type: 'string', isPublic: true, def: 'auto', desc: 'auto: potong sedikit jika hampir 16:9, jika tidak gambar penuh atas latar kabur | cover: sentiasa potong | contain: sentiasa gambar penuh', options: ['auto', 'cover', 'contain'] },
+    IMAGE_NORMALIZE_ENABLED: { group: 'Upload', type: 'boolean', isPublic: true, def: true, desc: 'Proses gambar berita semasa muat naik (betulkan arah telefon, kecilkan saiz fail)' },
+    IMAGE_UPLOAD_SHAPE: { group: 'Upload', type: 'string', isPublic: true, def: 'original', desc: 'original: bentuk asal dikekalkan (poster tidak terpotong; portal menyeragamkan paparan) | auto / cover / contain: tukar fail kepada 16:9', options: ['original', 'auto', 'cover', 'contain'] },
     MAX_IMAGES:         { group: 'Upload', type: 'number', isPublic: true, def: 10, desc: 'Bilangan imej maksimum' },
     MAX_ATTACHMENTS:    { group: 'Upload', type: 'number', isPublic: true, def: 5, desc: 'Bilangan lampiran maksimum' },
 

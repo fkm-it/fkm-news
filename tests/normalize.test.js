@@ -61,3 +61,13 @@ test('borang berita menggunakan prepareNewsImage; Index memuatkan fail', () => {
   assert.match(form, /App\.prepareNewsImage \|\| App\.fileToBase64/);
   assert.ok(idx.includes("include('image-normalize')"));
 });
+
+test('original (lalai): bentuk asal dikekalkan, hanya dikecilkan', () => {
+  const sq = plan(3000, 3000, 'original');
+  assert.deepEqual([sq.w, sq.h], [2000, 2000]);
+  assert.deepEqual([sq.src.w, sq.src.h], [3000, 3000]);
+  const small = plan(526, 526, 'original');
+  assert.deepEqual([small.w, small.h], [526, 526], 'tidak dibesarkan');
+  const pt = plan(1080, 1920, 'original');
+  assert.equal(pt.h, 1920);
+});

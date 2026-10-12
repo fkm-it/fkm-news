@@ -85,6 +85,11 @@ with sync_playwright() as p:
         # Chromium headless tiada enjin suara; ganti speechSynthesis dengan
         # palsu yang merekod teks supaya logik F9 boleh disahkan.
         ctx.add_init_script(FAKE_TTS)
+        # Gambar demo: berita 1 = poster segi empat, lain-lain = landskap (smart fit v1.11.1)
+        ctx.route('https://picsum.photos/**', lambda r: r.fulfill(status=200, content_type='image/svg+xml',
+            body=('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000"><rect width="1000" height="1000" fill="#c93"/></svg>'
+                  if 'fkm0' in r.request.url else
+                  '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750"><rect width="1200" height="750" fill="#4a7"/></svg>')))
         if PUSH: fake_firebase(ctx)
         page = ctx.new_page()
         errors = []
@@ -100,6 +105,10 @@ with sync_playwright() as p:
             check(not any(m == 'POST' and 'public.home' in d for m, _, d in reqs), 'portal statik: tiada panggilan Apps Script untuk home')
         check('Explorace' in page.inner_text('.hero-headline'), 'halaman utama: berita utama dipaparkan')
         check(page.locator('[data-open]').count() >= 3, 'halaman utama: kad berita dipaparkan')
+        page.wait_for_timeout(600)
+        nfit = page.locator('.news-card-media.fit-full').count()
+        ncards = page.locator('.news-card-media > img').count()
+        check(1 <= nfit < ncards, f'smart fit: poster dipaparkan penuh atas latar kabur, foto landskap kekal ({nfit}/{ncards})')
         sw = page.evaluate("() => scrollWidth = document.documentElement.scrollWidth - window.innerWidth")
         check(sw <= 1, f'tiada skrol mendatar (lebihan {sw}px)')
         page.wait_for_timeout(800)
@@ -268,12 +277,12 @@ with sync_playwright() as p:
               const g = k.getContext('2d'); g.drawImage(img, 0, 0);
               const px = (a, b) => Array.from(g.getImageData(a, b, 1, 1).data.slice(0, 3));
               return { w: img.width, h: img.height, name: o.name, mime: o.mimeType, mode: o.normalized,
-                       top: px(800, 8), mid: px(800, 450) };
+                       top: px(300, 8), mid: px(300, 500) };
             }''')
-            check(res['w'] == 1600 and res['h'] == 900 and res['mime'] == 'image/jpeg' and res['name'] == 'potret.jpg',
-                  f"Gambar: potret diseragamkan kepada {res['w']}×{res['h']} JPEG")
-            check(res['mode'] == 'contain' and res['top'][2] > 150 and res['mid'][0] > 150,
-                  f"Gambar: potret dipaparkan penuh (bahagian atas tidak dipotong) {res['top']}")
+            check(res['w'] == 600 and res['h'] == 1000 and res['mime'] == 'image/jpeg' and res['name'] == 'potret.jpg',
+                  f"Gambar: bentuk asal dikekalkan ({res['w']}×{res['h']} JPEG)")
+            check(res['mode'] == 'original' and res['top'][2] > 150,
+                  f"Gambar: bahagian atas tidak dipotong {res['top']}")
             page.set_input_files('#fileInput', files=[{'name': 'potret2.png', 'mimeType': 'image/png',
                 'buffer': bytes.fromhex('89504E470D0A1A0A0000000D49484452000000010000000208060000009977E3DE0000000D49444154789C63F8CFC0F01F00050001FF5C3E6E8B0000000049454E44AE426082')}])
             page.wait_for_selector('.thumb img[alt^="potret2"]', timeout=20000)

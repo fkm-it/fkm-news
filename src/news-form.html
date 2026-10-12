@@ -148,7 +148,7 @@ App.views['news-form'] = {
           '<span class="small">atau klik untuk pilih fail · ' +
           App.esc((s.ALLOWED_IMAGE_EXTENSIONS || []).join(', ')) +
           ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu' +
-          (s.IMAGE_NORMALIZE_ENABLED !== false ? '<br>Potret atau landskap — gambar diseragamkan automatik kepada 16:9' : '') +
+          (s.IMAGE_NORMALIZE_ENABLED !== false ? '<br>Potret, landskap atau poster — gambar penuh dikekalkan, paparan diseragamkan automatik' : '') +
           '</span>' +
         '</div>' +
         '<input type="file" id="fileInput" accept="image/*" multiple hidden>' +
@@ -294,7 +294,7 @@ App.views['news-form'] = {
       'atau klik untuk pilih fail · ' +
       App.esc((s.ALLOWED_IMAGE_EXTENSIONS || []).join(', ')) +
       ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu' +
-      (s.IMAGE_NORMALIZE_ENABLED !== false ? '<br>Potret atau landskap — gambar diseragamkan automatik kepada 16:9' : '') +
+      (s.IMAGE_NORMALIZE_ENABLED !== false ? '<br>Potret, landskap atau poster — gambar penuh dikekalkan, paparan diseragamkan automatik' : '') +
       '</span>';
   },
 

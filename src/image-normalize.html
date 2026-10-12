@@ -1,5 +1,13 @@
 <script>
-/* image-normalize.html — seragamkan gambar berita sebelum dimuat naik.
+/* image-normalize.html — proses gambar berita sebelum dimuat naik.
+
+   LALAI (IMAGE_UPLOAD_SHAPE = original, v1.11.1): bentuk asal DIKEKALKAN —
+   poster dan infografik tidak dipotong. Fail hanya dikecilkan (sisi
+   terpanjang 2000px), arah EXIF dibetulkan dan disimpan sebagai JPEG.
+   Paparan yang seragam dibuat di portal (public-extras.html: "smart fit").
+
+   Mod pilihan auto / cover / contain menukar fail kepada 16:9 seperti di
+   bawah.
 
    Paparan FKM News (hero portal, kad berita, gambar utama artikel, kad
    kongsi) semuanya berbentuk 16:9. Gambar yang dimuat naik dalam pelbagai
@@ -12,7 +20,7 @@
              tengah, di atas latar versi kabur gambar itu sendiri, supaya
              tiada kepala atau sepanduk terpotong dan tiada jalur hitam.
 
-   Mod ditetapkan oleh IMAGE_NORMALIZE_MODE (auto | cover | contain) dan
+   Mod ditetapkan oleh IMAGE_UPLOAD_SHAPE (original | auto | cover | contain) dan
    boleh dimatikan dengan IMAGE_NORMALIZE_ENABLED. Orientasi EXIF telefon
    dihormati. Jika pelayar gagal membaca imej, fail asal dimuat naik.
    Gambar kecil dibesarkan tidak melebihi 2×, supaya tidak terlalu kabur. */
@@ -21,12 +29,19 @@
   var TARGET_W = 1600, TARGET_H = 900;
   var COVER_MIN = 1.45, COVER_MAX = 2.1;
   var QUALITY = 0.86;
+  var MAX_EDGE = 2000;
 
   /**
    * Kira susun atur (fungsi tulen; diuji dalam tests/normalize.test.js).
    * @returns {{mode, w, h, src:{x,y,w,h}, dst:{x,y,w,h}}}
    */
   function plan(iw, ih, mode, tw, th) {
+    if (mode === 'original') {
+      /* Bentuk asal: hanya kecilkan sisi terpanjang kepada MAX_EDGE */
+      var k0 = Math.min(1, MAX_EDGE / Math.max(iw, ih));
+      var ow = Math.round(iw * k0), oh = Math.round(ih * k0);
+      return { mode: 'original', w: ow, h: oh, src: { x: 0, y: 0, w: iw, h: ih }, dst: { x: 0, y: 0, w: ow, h: oh } };
+    }
     tw = tw || TARGET_W; th = th || TARGET_H;
     var ratio = iw / ih;
     if (mode !== 'cover' && mode !== 'contain') {
@@ -79,7 +94,7 @@
     /* Elak pembesaran melampau bagi gambar yang sangat kecil */
     var maxUp = 2;
     var fit = p.mode === 'cover' ? Math.max(p.w / iw, p.h / ih) : Math.min(p.w / iw, p.h / ih);
-    var k = fit > maxUp ? maxUp / fit : 1;
+    var k = (p.mode !== 'original' && fit > maxUp) ? maxUp / fit : 1;
     var c = document.createElement('canvas');
     c.width = Math.round(p.w * k); c.height = Math.round(p.h * k);
     var x = c.getContext('2d');
@@ -114,7 +129,7 @@
       return App.fileToBase64(file);
     }
     return loadImage(file).then(function (img) {
-      var out = draw(img, String(setting('IMAGE_NORMALIZE_MODE', 'auto')));
+      var out = draw(img, String(setting('IMAGE_UPLOAD_SHAPE', 'original')));
       if (img.close) img.close();
       var base = String(file.name || 'gambar').replace(/\.[^.]+$/, '');
       return { name: base + '.jpg', mimeType: 'image/jpeg', data: toBase64(out.canvas), normalized: out.mode };
