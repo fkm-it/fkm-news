@@ -246,6 +246,20 @@ with sync_playwright() as p:
             page.screenshot(path=f'{SHOTS}/{name}-5b-buletin.png', full_page=False)
             page.click('#modalFoot .btn-ghost')
             check(page.locator('[data-bul="send"]').count() == 1, 'F10: Admin nampak butang Hantar')
+
+            # ------------------------------ Sunting berita TERBIT (v1.10.0)
+            page.goto(BASE + 'app/?page=news-detail&id=NEWS-2026-00001', wait_until='domcontentloaded')
+            page.wait_for_selector('#editBtn', timeout=20000)
+            check(True, 'Sunting: butang Sunting pada berita terbit (Admin)')
+            page.click('#editBtn')
+            page.wait_for_selector('#fTitle', timeout=20000)
+            check(page.locator('#saveSubmitBtn').count() == 0 and 'Simpan perubahan' in page.inner_text('#saveBtn'),
+                  'Sunting: borang berita terbit — "Simpan perubahan" sahaja')
+            page.fill('#fTitle', 'Explorace Merdeka Seribu 2026 Meriahkan Sambutan Bulan Kebangsaan di UTM Johor Bahru')
+            page.click('#saveBtn')
+            page.wait_for_selector('#editBtn', timeout=20000)
+            check('Johor Bahru' in page.inner_text('#view'), 'Sunting: perubahan disimpan, kekal diterbitkan')
+            page.screenshot(path=f'{SHOTS}/{name}-5c-sunting-terbit.png', full_page=False)
         else:
             page.wait_for_timeout(800)
             check(page.locator('#bulletinCard').count() == 0, 'F10: Penulis tidak nampak kad buletin')

@@ -28,11 +28,19 @@ App.views['news-form'] = {
       if (!news.canEdit) {
         container.innerHTML = '<div class="card">' + App.emptyState(
           'Berita ini tidak boleh disunting',
-          'Berita hanya boleh disunting semasa status Draf atau Perlu Pembetulan.') + '</div>';
+          'Berita hanya boleh disunting semasa status Draf atau Perlu Pembetulan. ' +
+          'Berita yang telah diterbitkan boleh disunting oleh Admin dan Editor.') + '</div>';
         return;
       }
       self.images = news.images || [];
+      self.isPublished = news.status === 'PUBLISHED';
       container.innerHTML = self.form(news);
+      if (self.isPublished) {
+        container.insertBefore(App.h('<div class="card section card-pad" style="border-left:4px solid var(--warning-color)">' +
+          '<strong>Berita ini sudah diterbitkan.</strong> <span class="small muted">Perubahan (teks dan gambar utama) ' +
+          'terus dipaparkan di portal selepas disimpan. Versi sebelum ini disimpan dalam sejarah versi; ' +
+          'pautan kongsi tidak berubah.</span></div>'), container.firstChild);
+      }
       self.bind(container, news);
       App.el('pageTitle').textContent = 'Sunting berita';
     });
@@ -97,8 +105,10 @@ App.views['news-form'] = {
     '<div class="row section">' +
       '<button class="btn btn-ghost" id="cancelBtn">Batal</button>' +
       '<span class="spacer"></span>' +
-      '<button class="btn" id="saveBtn">Simpan draf</button>' +
-      '<button class="btn btn-accent" id="saveSubmitBtn">Simpan dan hantar</button>' +
+      (n.status === 'PUBLISHED'
+        ? '<button class="btn btn-accent" id="saveBtn">Simpan perubahan</button>'
+        : '<button class="btn" id="saveBtn">Simpan draf</button>' +
+          '<button class="btn btn-accent" id="saveSubmitBtn">Simpan dan hantar</button>') +
     '</div>';
   },
 
@@ -195,7 +205,8 @@ App.views['news-form'] = {
     container.querySelector('#saveBtn').addEventListener('click', function (e) {
       self.save(container, false, e.target);
     });
-    container.querySelector('#saveSubmitBtn').addEventListener('click', function (e) {
+    var submitBtn = container.querySelector('#saveSubmitBtn');
+    if (submitBtn) submitBtn.addEventListener('click', function (e) {
       self.save(container, true, e.target);
     });
 
@@ -439,7 +450,7 @@ App.views['news-form'] = {
       .then(function (res) {
         self.newsId = res.newsId || self.newsId;
         if (!thenSubmit) {
-          App.toast('Draf disimpan.', 'success');
+          App.toast(res.published ? 'Perubahan disimpan. Portal dikemas kini.' : 'Draf disimpan.', 'success');
           App.navigate('news-detail', { newsId: self.newsId });
           return;
         }

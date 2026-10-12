@@ -1,6 +1,6 @@
 # Status naik taraf FKM News (kaedah D'Ruang)
 
-**Dikemas kini:** 12 Okt 2026 · Versi live: **v1.9.0**
+**Dikemas kini:** 12 Okt 2026 · Versi live: **v1.10.0**
 **Repo:** github.com/fkm-it/fkm-news (awam) · CI/CD: setiap push ke `main` → ujian → `clasp push` → kemas kini deployment → GitHub Pages
 
 ## URL
@@ -24,8 +24,9 @@
 | F7 Peringatan tertunggak (v1.5.0) | ✅ live | `ReminderService.gs`: satu ringkasan sehari bekerja kepada Admin/Editor/Penulis; `REMINDER_ENABLED`, `REMINDER_DAYS` |
 | F8 AI staf (v1.6.0) | ✅ live, mati secara lalai | Pembantu Penulis, Semakan AI, Versi BI, kapsyen sosial; aktif selepas `FKMNEWS_ANTHROPIC_KEY` + `AI_ENABLED` (DEPLOYMENT §1.4). Bil API berasingan daripada langganan Claude.ai |
 | F9 Pembaca (v1.7.0) | ✅ deploy | `public-extras.html`: Dengar **dimatikan** (v1.8.1, suara robotik), Ringkasan 30 saat (ayat utama setiap perenggan, tanpa AI/kos), Kod QR pautan kongsi |
-| F11 App telefon & push (v1.9.0) | ✅ live 12 Okt (deploy 9 Okt gagal di E2E CI, dibetulkan), menunggu Firebase Za | Pasang app (portal & staf); push staf (semua notifikasi aliran kerja) & pembaca (berita baharu, opt-in) melalui FCM; `PushService.gs`, `pwa/push.js`; DEPLOYMENT §1.6 |
+| F11 App telefon & push (v1.9.0) | ✅ live 12 Okt; Firebase disediakan Za 12 Okt | Pasang app (portal & staf); push staf (semua notifikasi aliran kerja) & pembaca (berita baharu, opt-in) melalui FCM; `PushService.gs`, `pwa/push.js`; DEPLOYMENT §1.6 |
 | F10 Kongsi & buletin (v1.8.0) | ✅ deploy | Kad kongsi 1080×1080 (pelayar), `/arkib/` garis masa, buletin bulanan e-mel+PDF (`BulletinService.gs`, kad Papan Pemuka; automatik mati secara lalai, DEPLOYMENT §1.5) |
+| Sunting berita terbit (v1.10.0) | ✅ deploy | Admin & Editor sunting berita Diterbitkan + tukar gambar utama; slug kekal, versi lama disimpan, portal dikemas kini; `EDIT_PUBLISHED_ENABLED` |
 
 ## Keputusan Za
 - Kod dan interface sedia ada dikekalkan (tidak dipindah ke enjin modul JSON templat)

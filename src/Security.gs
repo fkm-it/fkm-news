@@ -46,9 +46,22 @@ var Security = (function () {
   /** Hanya pemilik (atau Admin) boleh sunting draf */
   function canEditNews(user, news) {
     if (!news) return false;
+    if (String(news.Status) === STATUS.PUBLISHED) return canEditPublished(user);
     if (EDITABLE_STATUSES.indexOf(String(news.Status)) === -1) return false;
     if (String(news.AuthorID) === String(user.userId)) return true;
     return user.role === ROLES.ADMIN;
+  }
+
+  /**
+   * Suntingan selepas terbit (pembetulan fakta, tukar gambar utama).
+   * Admin dan Editor sahaja: Penulis tidak boleh mengubah berita yang sudah
+   * melalui semakan tanpa semakan semula. Dikawal oleh EDIT_PUBLISHED_ENABLED.
+   */
+  function canEditPublished(user) {
+    if (!user) return false;
+    var on = true;
+    try { on = GlobalSettings.get('EDIT_PUBLISHED_ENABLED') !== false; } catch (e) { }
+    return on && (user.role === ROLES.ADMIN || user.role === ROLES.EDITOR);
   }
 
   function requireEditNews(user, news) {
@@ -303,6 +316,7 @@ var Security = (function () {
     canViewNews: canViewNews,
     requireViewNews: requireViewNews,
     canEditNews: canEditNews,
+    canEditPublished: canEditPublished,
     requireEditNews: requireEditNews,
     escapeHtml: escapeHtml,
     sanitizeText: sanitizeText,

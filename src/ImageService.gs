@@ -116,6 +116,12 @@ var ImageService = (function () {
     AuditService.log(user.userId, AUDIT_ACTION.UPLOAD_FILE, 'NEWS', newsId, '', '',
       'Muat naik ' + records.length + ' gambar');
 
+    // Berita sudah terbit: pembaca awam mesti boleh melihat gambar baharu.
+    if (String(news.Status) === STATUS.PUBLISHED) {
+      created.forEach(function (u) { applySharing_(u.fileId, true); });
+      NewsService.syncPublished(newsId, 'gambar');
+    }
+
     return listForNews(newsId);
   }
 
@@ -135,18 +141,20 @@ var ImageService = (function () {
       update.IsSelectedForSocial = patch.isSelectedForSocial ? 'TRUE' : 'FALSE';
 
     SheetDB.updateRow(CONFIG.SHEETS.NEWS_IMAGES, rec._row, update);
+    // Kapsyen diubah satu demi satu; portal dikemas kini oleh trigger 10 minit.
+    if (String(news.Status) === STATUS.PUBLISHED) { try { StaticSite.markDirty('kapsyen'); } catch (e) { } }
     return listForNews(rec.NewsID);
   }
 
   /** Tetapkan satu gambar sebagai gambar utama (unik setiap artikel) */
-  function setFeatured(user, imageId) {
+  function setFeatured(user, imageId, noSync) {
     var rec = SheetDB.findOneBy(CONFIG.SHEETS.NEWS_IMAGES, 'ImageID', imageId);
     if (!rec) throw Utils.appError('NOT_FOUND', 'Gambar tidak dijumpai.');
 
     var news = NewsService.getRaw(rec.NewsID);
     Security.requireEditNews(user, news);
 
-    return Utils.withLock(function () {
+    var out = Utils.withLock(function () {
       rowsFor(rec.NewsID).forEach(function (r) {
         var shouldBe = String(r.ImageID) === String(imageId) ? 'TRUE' : 'FALSE';
         if (String(r.IsFeatured).toUpperCase() !== shouldBe) {
@@ -157,8 +165,11 @@ var ImageService = (function () {
         DriveService.thumbnailUrl(rec.FileID));
       AuditService.log(user.userId, AUDIT_ACTION.UPDATE_NEWS, 'NEWS', rec.NewsID, '', '',
         'Tukar gambar utama: ' + rec.FileName);
+      if (String(news.Status) === STATUS.PUBLISHED) applySharing_(rec.FileID, true);
       return listForNews(rec.NewsID);
     });
+    if (String(news.Status) === STATUS.PUBLISHED && !noSync) NewsService.syncPublished(rec.NewsID, 'gambar utama');
+    return out;
   }
 
   /** Tanda / nyahtanda gambar untuk penerbitan media sosial */
@@ -196,9 +207,10 @@ var ImageService = (function () {
     // Jika gambar utama dibuang, naikkan gambar pertama yang tinggal
     if (wasFeatured) {
       var remaining = listForNews(rec.NewsID);
-      if (remaining.length) setFeatured(user, remaining[0].imageId);
+      if (remaining.length) setFeatured(user, remaining[0].imageId, true);
       else NewsService.setFeaturedImage(user, rec.NewsID, '', '');
     }
+    if (String(news.Status) === STATUS.PUBLISHED) NewsService.syncPublished(rec.NewsID, 'buang gambar');
 
     return listForNews(rec.NewsID);
   }

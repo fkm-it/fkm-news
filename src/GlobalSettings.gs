@@ -92,6 +92,7 @@ var GlobalSettings = (function () {
     /* ---------- Workflow ---------- */
     ENABLED_STATUSES:   { group: 'Workflow', type: 'csv', isPublic: true, def: 'DRAFT,SUBMITTED,ADMIN_REVIEW,REVISION_REQUIRED,RESUBMITTED,EDITOR_REVIEW,APPROVED,PUBLISHED,REJECTED,ARCHIVED', desc: 'Status yang diaktifkan' },
     REQUIRE_ADMIN_REVIEW:{ group: 'Workflow', type: 'boolean', isPublic: true, def: true, desc: 'Wajib semakan Admin sebelum Editor' },
+    EDIT_PUBLISHED_ENABLED: { group: 'Workflow', type: 'boolean', isPublic: true, def: true, desc: 'Admin dan Editor boleh menyunting berita yang telah diterbitkan (kandungan & gambar utama). Versi lama disimpan; portal dikemas kini serta-merta' },
     ALLOW_AUTHOR_DELETE_DRAFT: { group: 'Workflow', type: 'boolean', isPublic: true, def: true, desc: 'Author boleh padam draf sendiri' },
     REQUIRE_COMMENT_ON_REJECT: { group: 'Workflow', type: 'boolean', isPublic: true, def: true, desc: 'Komen wajib semasa tolak/pembetulan' },
     AUTO_PUBLISH_ON_APPROVE:   { group: 'Workflow', type: 'boolean', isPublic: true, def: false, desc: 'Terbit automatik selepas lulus' },

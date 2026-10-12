@@ -363,10 +363,11 @@ var NewsService = (function () {
   function update(user, newsId, data) {
     Validation.validateNews(data, false);
 
-    return Utils.withLock(function () {
+    var res = Utils.withLock(function () {
       var n = getRaw(newsId);
       Security.requireEditNews(user, n);
 
+      var isPublished = String(n.Status) === STATUS.PUBLISHED;
       var title = Security.sanitizeText(data.title, GlobalSettings.get('MAX_TITLE_LENGTH'));
       var patch = {
         Title: title,
@@ -408,13 +409,42 @@ var NewsService = (function () {
       // Medan English mengikut peraturan yang sama: hadir sahaja yang ditulis.
       merge_(patch, bilingualPatch_(data));
 
+      if (isPublished) {
+        /*
+         * Suntingan selepas terbit:
+         *  - slug dikekalkan, supaya pautan yang sudah dikongsi (/b/<slug>/,
+         *    WhatsApp, Facebook) tidak putus walaupun tajuk dibetulkan;
+         *  - kandungan sebelum suntingan disimpan sebagai versi.
+         */
+        if (String(n.Slug || '')) patch.Slug = String(n.Slug);
+        createVersion(n, user.userId, 'Sebelum suntingan selepas terbit');
+        patch.CurrentVersion = Number(n.CurrentVersion || 1) + 1;
+      }
+
       SheetDB.updateRow(CONFIG.SHEETS.NEWS, n._row, patch);
 
       AuditService.log(user.userId, AUDIT_ACTION.UPDATE_NEWS, 'NEWS', newsId,
-        String(n.Status), String(n.Status), 'Kemas kini kandungan');
+        String(n.Status), String(n.Status),
+        isPublished ? 'Suntingan selepas terbit' : 'Kemas kini kandungan');
 
-      return { newsId: newsId };
+      return { newsId: newsId, published: isPublished };
     });
+    if (res.published) syncPublished(newsId, 'suntingan');
+    return res;
+  }
+
+  /**
+   * Selepas berita TERBIT diubah (kandungan atau gambar): kemas kini salinan
+   * statik portal. StaticSite.sync() tidak melempar ralat; tanpa token GitHub
+   * portal masih membaca terus daripada Apps Script.
+   */
+  function syncPublished(newsId, why) {
+    try {
+      var n = getRaw(newsId);
+      if (String(n.Status) !== STATUS.PUBLISHED) return false;
+      StaticSite.sync(why + ' ' + newsId);
+      return true;
+    } catch (e) { return false; }
   }
 
   /** Padam draf sendiri sahaja */
@@ -576,6 +606,7 @@ var NewsService = (function () {
     update: update,
     remove: remove,
     setFeaturedImage: setFeaturedImage,
+    syncPublished: syncPublished,
     listCategories: listCategories,
     saveCategory: saveCategory
   };

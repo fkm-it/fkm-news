@@ -1,5 +1,16 @@
 # Changelog — FKM News
 
+## 1.10.0 — 2026-10-12 · Sunting berita yang telah diterbitkan
+
+- **Admin dan Editor** boleh menyunting berita yang sudah **Diterbitkan** (butang **Sunting** pada butiran berita): tajuk, ringkasan, kandungan, kategori, gambar dan **gambar utama** ("Jadikan utama"). Penulis tidak boleh (berita mereka sudah melalui semakan).
+- Berita kekal Diterbitkan. Versi sebelum suntingan disimpan dalam **Sejarah versi**; jejak audit "Suntingan selepas terbit".
+- **Slug kekal** walaupun tajuk diubah, supaya pautan yang sudah dikongsi (`/b/<slug>/`, WhatsApp, Facebook) tidak putus.
+- Portal statik dikemas kini serta-merta selepas simpan / tukar gambar utama / buang gambar. Gambar baharu pada berita terbit terus dibuka kepada pembaca awam. Kapsyen dikemas kini dalam ~10 minit.
+- Tiada notifikasi push dihantar semula (push hanya pada penerbitan pertama).
+- Borang: berita terbit memaparkan amaran dan satu butang "Simpan perubahan".
+- Tetapan baharu (Workflow): `EDIT_PUBLISHED_ENABLED` (lalai hidup).
+- 6 ujian baharu (`tests/edit-published.test.js`) + E2E (Admin sunting berita terbit).
+
 ## 1.9.0 — 2026-10-09 · F11 App telefon & notifikasi push
 
 - **Pasang app**: portal (FKM News) dan app staf (FKM News Staf) boleh dipasang ke Skrin Utama telefon/komputer: butang "Pasang app" (Android/Chrome/Edge), arahan Add to Home Screen (iPhone).
