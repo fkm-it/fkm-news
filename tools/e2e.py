@@ -26,7 +26,8 @@ def check(cond, msg):
 if GHA:
     import traceback
     def _hook(t, v, tb):
-        last = traceback.extract_tb(tb)[-1] if tb else None
+        frames = [f for f in traceback.extract_tb(tb) if f.filename.endswith('e2e.py')] if tb else []
+        last = frames[-1] if frames else None
         where = f' (e2e.py:{last.lineno} {last.line})' if last else ''
         print(f'::error title=E2E {MODE} ralat::{t.__name__}: {str(v).splitlines()[0][:300]}{where}')
         traceback.print_exception(t, v, tb)
