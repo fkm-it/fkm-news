@@ -43,6 +43,12 @@ if (process.argv.includes('--push')) {
   };
 }
 
+/* Salinan statik daripada larian --static sebelumnya mesti dibuang: tanpa
+   ini bridge membaca bootstrap lama (contoh tanpa tetapan push F11). */
+if (!process.argv.includes('--static')) {
+  fs.rmSync(path.join(DIR, 'data'), { recursive: true, force: true });
+}
+
 /* Portal statik (F5): tulis data/ daripada StaticSite.buildFiles() ke laman */
 if (process.argv.includes('--static')) {
   gas.as(OWNER);
