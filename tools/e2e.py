@@ -13,9 +13,24 @@ SHOTS = os.environ.get('E2E_SHOTS', 'e2e-shots')
 os.makedirs(SHOTS, exist_ok=True)
 fails = []
 
+GHA = bool(os.environ.get('GITHUB_ACTIONS'))
+MODE = next((m for m in ('STATIC', 'AI', 'PUSH') if os.environ.get('E2E_' + m)), 'ASAS')
+
 def check(cond, msg):
     print(('  ✓ ' if cond else '  ✗ ') + msg)
-    if not cond: fails.append(msg)
+    if not cond:
+        fails.append(msg)
+        # Log Actions tidak boleh dibaca tanpa log masuk; anotasi boleh (API awam).
+        if GHA: print(f'::error title=E2E {MODE}::{msg}')
+
+if GHA:
+    import traceback
+    def _hook(t, v, tb):
+        last = traceback.extract_tb(tb)[-1] if tb else None
+        where = f' (e2e.py:{last.lineno} {last.line})' if last else ''
+        print(f'::error title=E2E {MODE} ralat::{t.__name__}: {str(v).splitlines()[0][:300]}{where}')
+        traceback.print_exception(t, v, tb)
+    sys.excepthook = _hook
 
 def ignorable(text):
     # Gambar demo dari internet disekat dalam CI/kontena; bukan pepijat portal.
