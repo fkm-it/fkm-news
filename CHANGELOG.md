@@ -1,5 +1,14 @@
 # Changelog — FKM News
 
+## 1.11.0 — 2026-10-12 · Gambar berita diseragamkan 16:9
+
+- Setiap gambar berita yang dimuat naik (borang berita, app staf) ditukar dalam pelayar kepada **JPEG 1600×900 (16:9)**, sama dengan paparan portal (hero, kad berita, gambar utama, kad kongsi), sebelum dihantar ke Drive.
+- **auto** (lalai): gambar hampir 16:9 (contoh 3:2 telefon) dipotong sedikit, condong ke atas supaya kepala tidak terpotong; gambar **potret, segi empat atau panorama** dipaparkan **penuh** di tengah atas latar kabur gambar itu sendiri (tiada jalur hitam, tiada bahagian hilang).
+- Orientasi EXIF telefon dihormati; fail besar (contoh 8 MB) menjadi ~300–500 KB — muat naik dan portal lebih laju. Jika pelayar gagal membaca imej, fail asal dimuat naik seperti dahulu.
+- Tetapan baharu (Upload): `IMAGE_NORMALIZE_ENABLED` (lalai hidup), `IMAGE_NORMALIZE_MODE` (`auto` | `cover` | `contain`). Poster kad ucapan tidak terjejas.
+- Gambar yang sudah dimuat naik sebelum ini tidak diubah.
+- 6 ujian baharu (`tests/normalize.test.js`) + E2E (potret → 1600×900 penuh, muat naik melalui borang).
+
 ## 1.10.0 — 2026-10-12 · Sunting berita yang telah diterbitkan
 
 - **Admin dan Editor** boleh menyunting berita yang sudah **Diterbitkan** (butang **Sunting** pada butiran berita): tajuk, ringkasan, kandungan, kategori, gambar dan **gambar utama** ("Jadikan utama"). Penulis tidak boleh (berita mereka sudah melalui semakan).

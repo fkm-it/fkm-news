@@ -147,7 +147,9 @@ App.views['news-form'] = {
           '<strong>Seret gambar ke sini</strong><br>' +
           '<span class="small">atau klik untuk pilih fail · ' +
           App.esc((s.ALLOWED_IMAGE_EXTENSIONS || []).join(', ')) +
-          ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu</span>' +
+          ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu' +
+          (s.IMAGE_NORMALIZE_ENABLED !== false ? '<br>Potret atau landskap — gambar diseragamkan automatik kepada 16:9' : '') +
+          '</span>' +
         '</div>' +
         '<input type="file" id="fileInput" accept="image/*" multiple hidden>' +
         '<div class="gallery" id="gallery" style="margin-top:14px"></div>' +
@@ -269,7 +271,9 @@ App.views['news-form'] = {
 
     ensure
       .then(function (newsId) {
-        return Promise.all(imageFiles.map(App.fileToBase64)).then(function (encoded) {
+        /* Gambar diseragamkan kepada 16:9 dahulu (image-normalize.html). */
+        var prep = App.prepareNewsImage || App.fileToBase64;
+        return Promise.all(imageFiles.map(prep)).then(function (encoded) {
           return App.call('image.upload', { newsId: newsId, files: encoded });
         });
       })
@@ -289,7 +293,9 @@ App.views['news-form'] = {
     zone.innerHTML = '<strong>Seret gambar ke sini</strong><br><span class="small">' +
       'atau klik untuk pilih fail · ' +
       App.esc((s.ALLOWED_IMAGE_EXTENSIONS || []).join(', ')) +
-      ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu</span>';
+      ' · maksimum ' + s.MAX_FILE_SIZE_MB + ' MB setiap satu' +
+      (s.IMAGE_NORMALIZE_ENABLED !== false ? '<br>Potret atau landskap — gambar diseragamkan automatik kepada 16:9' : '') +
+      '</span>';
   },
 
   renderGallery: function (container) {

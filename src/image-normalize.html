@@ -1,0 +1,132 @@
+<script>
+/* image-normalize.html — seragamkan gambar berita sebelum dimuat naik.
+
+   Paparan FKM News (hero portal, kad berita, gambar utama artikel, kad
+   kongsi) semuanya berbentuk 16:9. Gambar yang dimuat naik dalam pelbagai
+   bentuk (potret telefon, segi empat, panorama) ditukar dalam PELAYAR kepada
+   JPEG 1600×900 sebelum dihantar ke pelayan:
+
+     cover   gambar yang hampir 16:9 (nisbah 1.45–2.1) dipotong sedikit di
+             tengah supaya penuh bingkai;
+     contain gambar lain (potret, segi empat, panorama) dipaparkan PENUH di
+             tengah, di atas latar versi kabur gambar itu sendiri, supaya
+             tiada kepala atau sepanduk terpotong dan tiada jalur hitam.
+
+   Mod ditetapkan oleh IMAGE_NORMALIZE_MODE (auto | cover | contain) dan
+   boleh dimatikan dengan IMAGE_NORMALIZE_ENABLED. Orientasi EXIF telefon
+   dihormati. Jika pelayar gagal membaca imej, fail asal dimuat naik.
+   Gambar kecil dibesarkan tidak melebihi 2×, supaya tidak terlalu kabur. */
+
+(function () {
+  var TARGET_W = 1600, TARGET_H = 900;
+  var COVER_MIN = 1.45, COVER_MAX = 2.1;
+  var QUALITY = 0.86;
+
+  /**
+   * Kira susun atur (fungsi tulen; diuji dalam tests/normalize.test.js).
+   * @returns {{mode, w, h, src:{x,y,w,h}, dst:{x,y,w,h}}}
+   */
+  function plan(iw, ih, mode, tw, th) {
+    tw = tw || TARGET_W; th = th || TARGET_H;
+    var ratio = iw / ih;
+    if (mode !== 'cover' && mode !== 'contain') {
+      mode = (ratio >= COVER_MIN && ratio <= COVER_MAX) ? 'cover' : 'contain';
+    }
+    var target = tw / th;
+    if (mode === 'cover') {
+      var sw = iw, sh = ih;
+      if (ratio > target) sw = ih * target; else sh = iw / target;
+      return { mode: 'cover', w: tw, h: th,
+        /* Potongan menegak condong ke atas (35%): kepala dan sepanduk
+           biasanya di bahagian atas gambar acara. */
+        src: { x: (iw - sw) / 2, y: (ih - sh) * 0.35, w: sw, h: sh },
+        dst: { x: 0, y: 0, w: tw, h: th } };
+    }
+    var scale = Math.min(tw / iw, th / ih);
+    var dw = iw * scale, dh = ih * scale;
+    return { mode: 'contain', w: tw, h: th,
+      src: { x: 0, y: 0, w: iw, h: ih },
+      dst: { x: (tw - dw) / 2, y: (th - dh) / 2, w: dw, h: dh } };
+  }
+
+  function setting(k, def) {
+    var s = (window.App && App.state && App.state.settings) || {};
+    return s[k] === undefined ? def : s[k];
+  }
+
+  function loadImage(file) {
+    if (window.createImageBitmap) {
+      return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () {
+        return loadViaImg(file);
+      });
+    }
+    return loadViaImg(file);
+  }
+
+  function loadViaImg(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('decode')); };
+      img.src = url;
+    });
+  }
+
+  function draw(img, mode) {
+    var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    var p = plan(iw, ih, mode);
+    /* Elak pembesaran melampau bagi gambar yang sangat kecil */
+    var maxUp = 2;
+    var fit = p.mode === 'cover' ? Math.max(p.w / iw, p.h / ih) : Math.min(p.w / iw, p.h / ih);
+    var k = fit > maxUp ? maxUp / fit : 1;
+    var c = document.createElement('canvas');
+    c.width = Math.round(p.w * k); c.height = Math.round(p.h * k);
+    var x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high';
+
+    if (p.mode === 'contain') {
+      /* Latar: gambar sama, dibesarkan memenuhi bingkai, dikaburkan & digelapkan */
+      var bp = plan(iw, ih, 'cover', c.width, c.height);
+      x.filter = 'blur(' + Math.round(c.width / 40) + 'px) brightness(0.72) saturate(1.1)';
+      x.drawImage(img, bp.src.x, bp.src.y, bp.src.w, bp.src.h, -40, -40, c.width + 80, c.height + 80);
+      x.filter = 'none';
+      if (!('filter' in x)) {
+        x.fillStyle = 'rgba(0,0,0,.45)';
+        x.fillRect(0, 0, c.width, c.height);
+      }
+    }
+    x.drawImage(img, p.src.x, p.src.y, p.src.w, p.src.h,
+      p.dst.x * k, p.dst.y * k, p.dst.w * k, p.dst.h * k);
+    return { canvas: c, mode: p.mode };
+  }
+
+  function toBase64(canvas) {
+    return canvas.toDataURL('image/jpeg', QUALITY).split(',')[1];
+  }
+
+  /**
+   * Ganti App.fileToBase64 untuk gambar berita.
+   * @returns {Promise<{name, mimeType, data, normalized?}>}
+   */
+  function prepareNewsImage(file) {
+    if (!setting('IMAGE_NORMALIZE_ENABLED', true) || !/^image\/(jpe?g|png|webp)$/i.test(file.type || '')) {
+      return App.fileToBase64(file);
+    }
+    return loadImage(file).then(function (img) {
+      var out = draw(img, String(setting('IMAGE_NORMALIZE_MODE', 'auto')));
+      if (img.close) img.close();
+      var base = String(file.name || 'gambar').replace(/\.[^.]+$/, '');
+      return { name: base + '.jpg', mimeType: 'image/jpeg', data: toBase64(out.canvas), normalized: out.mode };
+    }).catch(function () {
+      return App.fileToBase64(file);
+    });
+  }
+
+  if (window.App) {
+    App.prepareNewsImage = prepareNewsImage;
+    App.imagePlan = plan;
+  }
+  window.FKMImagePlan = plan;
+})();
+</script>

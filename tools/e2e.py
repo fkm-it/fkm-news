@@ -255,6 +255,29 @@ with sync_playwright() as p:
             page.wait_for_selector('#fTitle', timeout=20000)
             check(page.locator('#saveSubmitBtn').count() == 0 and 'Simpan perubahan' in page.inner_text('#saveBtn'),
                   'Sunting: borang berita terbit — "Simpan perubahan" sahaja')
+            # ------------------- Gambar diseragamkan 16:9 (v1.11.0)
+            res = page.evaluate('''async () => {
+              const c = document.createElement('canvas'); c.width = 600; c.height = 1000;
+              const x = c.getContext('2d'); x.fillStyle = '#c00'; x.fillRect(0, 0, 600, 1000);
+              x.fillStyle = '#00f'; x.fillRect(0, 0, 600, 40);
+              const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+              const f = new File([blob], 'potret.png', { type: 'image/png' });
+              const o = await App.prepareNewsImage(f);
+              const img = new Image(); img.src = 'data:image/jpeg;base64,' + o.data; await img.decode();
+              const k = document.createElement('canvas'); k.width = img.width; k.height = img.height;
+              const g = k.getContext('2d'); g.drawImage(img, 0, 0);
+              const px = (a, b) => Array.from(g.getImageData(a, b, 1, 1).data.slice(0, 3));
+              return { w: img.width, h: img.height, name: o.name, mime: o.mimeType, mode: o.normalized,
+                       top: px(800, 8), mid: px(800, 450) };
+            }''')
+            check(res['w'] == 1600 and res['h'] == 900 and res['mime'] == 'image/jpeg' and res['name'] == 'potret.jpg',
+                  f"Gambar: potret diseragamkan kepada {res['w']}×{res['h']} JPEG")
+            check(res['mode'] == 'contain' and res['top'][2] > 150 and res['mid'][0] > 150,
+                  f"Gambar: potret dipaparkan penuh (bahagian atas tidak dipotong) {res['top']}")
+            page.set_input_files('#fileInput', files=[{'name': 'potret2.png', 'mimeType': 'image/png',
+                'buffer': bytes.fromhex('89504E470D0A1A0A0000000D49484452000000010000000208060000009977E3DE0000000D49444154789C63F8CFC0F01F00050001FF5C3E6E8B0000000049454E44AE426082')}])
+            page.wait_for_selector('.thumb img[alt^="potret2"]', timeout=20000)
+            check(True, 'Gambar: muat naik melalui borang berjaya (fail .jpg diseragamkan)')
             page.fill('#fTitle', 'Explorace Merdeka Seribu 2026 Meriahkan Sambutan Bulan Kebangsaan di UTM Johor Bahru')
             page.click('#saveBtn')
             page.wait_for_selector('#editBtn', timeout=20000)
