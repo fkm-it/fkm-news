@@ -64,7 +64,13 @@ function walk(dir) {
     if (fs.statSync(p).isDirectory()) { walk(p); continue; }
     if (p === __filename) continue;
     const text = fs.readFileSync(p, 'utf8');
-    SECRET_PATTERNS.forEach(re => { if (re.test(text)) err(`${path.relative(ROOT, p)}: kemungkinan rahsia (${re})`); });
+    const rel = path.relative(ROOT, p);
+    SECRET_PATTERNS.forEach(re => {
+      // data/ ialah salinan tetapan AWAM portal. Kunci web Firebase (AIza…)
+      // memang awam (dihantar ke setiap pelayar), jadi dikecualikan di situ.
+      if (re.source.startsWith('AIza') && rel.split(path.sep)[0] === 'data') return;
+      if (re.test(text)) err(`${rel}: kemungkinan rahsia (${re})`);
+    });
   }
 }
 walk(ROOT);
